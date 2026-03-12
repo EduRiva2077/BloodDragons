@@ -16,6 +16,10 @@ export class CombatService {
   uiVisible = signal<boolean>(true); // Toggle all UI panels
   rightPanelTab = signal<'abilities' | 'sheet'>('abilities'); // Control right panel tab
   
+  // View State (Zoom & Pan)
+  zoom = signal<number>(1);
+  pan = signal<{x: number, y: number}>({x: 0, y: 0});
+  
   // Measure Tool State
   isMeasuring = signal<boolean>(false);
   measureStart = signal<{x: number, y: number} | null>(null);

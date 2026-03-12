@@ -151,12 +151,17 @@ import { MatIconModule } from '@angular/material/icon';
                 title="Toggle Grid">
           <mat-icon style="font-size: 20px; width: 20px; height: 20px;">grid_on</mat-icon>
         </button>
-        <button class="w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
+        <button class="relative w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
                 [class.text-amber-500]="combat.isMeasuring()"
                 [class.border-amber-500]="combat.isMeasuring()"
+                [class.bg-amber-500/10]="combat.isMeasuring()"
+                [class.shadow-[0_0_15px_rgba(245,158,11,0.2)]]="combat.isMeasuring()"
                 (click)="toggleMeasure()"
                 title="Measure Distance">
           <mat-icon style="font-size: 20px; width: 20px; height: 20px;">straighten</mat-icon>
+          @if (combat.isMeasuring()) {
+            <span class="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-stone-900 animate-pulse"></span>
+          }
         </button>
       </div>
 

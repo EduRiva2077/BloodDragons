@@ -1,98 +1,123 @@
-import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef, signal } from '@angular/core';
 import { CdkDragEnd, DragDropModule } from '@angular/cdk/drag-drop';
 import { DndMathService } from '../../services/dnd-math.service';
 import { AuthService } from '../../services/auth.service';
 import { CombatService } from '../../services/combat.service';
 import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
 import { Token } from '../../models/token';
 import { Ability } from '../../models/ability';
 
 @Component({
   selector: 'app-grid',
   standalone: true,
-  imports: [CommonModule, DragDropModule],
+  imports: [CommonModule, DragDropModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="relative w-full h-full overflow-hidden bg-stone-900 flex flex-col">
-      <div class="absolute top-4 left-4 z-30 text-sm font-mono bg-stone-900/80 text-amber-500 p-2 rounded border border-amber-900/50 backdrop-blur-sm shadow-lg">
-        Distance to origin: {{ distanceToOrigin() }} m
+    <div class="relative w-full h-full overflow-hidden bg-stone-950 flex flex-col" 
+         (wheel)="onWheel($event)"
+         (mousedown)="onMouseDown($event)"
+         (mousemove)="onGlobalMouseMove($event)"
+         (mouseup)="onMouseUp()"
+         (contextmenu)="$event.preventDefault()">
+      <div class="absolute top-4 left-4 z-30 flex flex-col gap-2">
+        <div class="text-sm font-mono bg-stone-900/80 text-amber-500 p-2 rounded border border-amber-900/50 backdrop-blur-sm shadow-lg">
+          Distance to origin: {{ distanceToOrigin() }} m
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="text-[10px] font-mono bg-stone-900/80 text-stone-400 p-1 px-2 rounded border border-stone-800 backdrop-blur-sm">
+            Zoom: {{ (combat.zoom() * 100).toFixed(0) }}% | Pan: {{ combat.pan().x.toFixed(0) }}, {{ combat.pan().y.toFixed(0) }}
+          </div>
+          <button (click)="resetView()" class="p-1 bg-stone-900/80 text-stone-400 hover:text-amber-500 rounded border border-stone-800 backdrop-blur-sm transition-colors" title="Reset View">
+            <mat-icon style="font-size: 14px; width: 14px; height: 14px;">restart_alt</mat-icon>
+          </button>
+        </div>
       </div>
       
-      <div class="relative overflow-auto flex-1 cursor-crosshair bg-stone-900" #gridContainer
-           tabindex="0"
-           (mousemove)="onMouseMove($event)"
-           (click)="onClick($event)"
-           (keydown.enter)="onClick()">
-        
-        <div class="relative w-full h-full" #boundary>
-          <!-- Map Background Image -->
-          @if (mapBackgroundImage()) {
-            <img [src]="mapBackgroundImage()" class="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 opacity-80" alt="Map Background" referrerpolicy="no-referrer" />
-          } @else {
-            <div class="absolute inset-0 w-full h-full bg-stone-800"></div>
-          }
+      <div class="relative flex-1 bg-stone-950 overflow-hidden" #gridContainer>
+        <div class="absolute inset-0 origin-top-left transition-transform duration-75 ease-out"
+             [style.transform]="'translate(' + combat.pan().x + 'px, ' + combat.pan().y + 'px) scale(' + combat.zoom() + ')'">
+          
+          <div class="relative" [style.width.px]="mapWidth()" [style.height.px]="mapHeight()" #boundary>
+            <!-- Map Background Image -->
+            @if (mapBackgroundImage()) {
+              <img [src]="mapBackgroundImage()" 
+                   class="absolute inset-0 w-full h-full object-contain pointer-events-none z-0 opacity-90" 
+                   (load)="onMapLoad($event)"
+                   alt="Map Background" referrerpolicy="no-referrer" />
+            } @else {
+              <div class="absolute inset-0 w-full h-full bg-stone-900"></div>
+            }
 
-          <!-- Grid Background -->
-          @if (showGrid()) {
-            <div class="absolute inset-0 pointer-events-none opacity-20 z-10"
-                 [style.backgroundSize]="gridSize + 'px ' + gridSize + 'px'"
-                 style="background-image: linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px);">
-            </div>
-          }
+            <!-- Grid Background -->
+            @if (showGrid()) {
+              <div class="absolute inset-0 pointer-events-none opacity-20 z-10"
+                   [style.backgroundSize]="gridSize + 'px ' + gridSize + 'px'"
+                   style="background-image: linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px);">
+              </div>
+            }
 
-          <!-- Area Preview SVG -->
-          @if (previewAbility()) {
-            <svg class="absolute inset-0 w-full h-full pointer-events-none z-20">
-              <path [attr.d]="areaPath()" fill="rgba(245, 158, 11, 0.3)" stroke="#f59e0b" stroke-width="2" />
-            </svg>
-          }
-
-          <!-- Measure Line -->
-          @if (combat.isMeasuring() && combat.measureStart() && combat.measureCurrent()) {
-            <svg class="absolute inset-0 w-full h-full pointer-events-none z-40">
-              <line 
-                [attr.x1]="combat.measureStart()!.x" 
-                [attr.y1]="combat.measureStart()!.y" 
-                [attr.x2]="combat.measureCurrent()!.x" 
-                [attr.y2]="combat.measureCurrent()!.y" 
-                stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,5" />
-              <circle [attr.cx]="combat.measureStart()!.x" [attr.cy]="combat.measureStart()!.y" r="4" fill="#f59e0b" />
-              <circle [attr.cx]="combat.measureCurrent()!.x" [attr.cy]="combat.measureCurrent()!.y" r="4" fill="#f59e0b" />
-            </svg>
-            
-            <!-- Distance Label -->
-            <div class="absolute z-50 bg-stone-900/90 text-amber-500 text-xs font-bold px-2 py-1 rounded border border-amber-500/50 pointer-events-none transform -translate-x-1/2 -translate-y-full mt-[-10px]"
-                 [style.left.px]="combat.measureCurrent()!.x"
-                 [style.top.px]="combat.measureCurrent()!.y">
-              {{ measureDistance() }}m
-            </div>
-          }
-
-          @for (token of tokens(); track token.id) {
-            <div class="absolute top-0 left-0 rounded-full shadow-lg border-2 flex flex-col items-center justify-center transition-shadow hover:shadow-amber-500/50 z-30 group"
+            <!-- Interaction Layer -->
+            <div class="absolute inset-0 z-20 cursor-crosshair"
                  tabindex="0"
-                 [class.cursor-grab]="canMove(token)"
-                 [class.active:cursor-grabbing]="canMove(token)"
-                 [class.cursor-not-allowed]="!canMove(token)"
-                 [class.border-yellow-400]="token.type === 'player' && !isAffected(token) && selectedTokenId() !== token.id"
-                 [class.border-red-500]="token.type === 'enemy' && !isAffected(token) && selectedTokenId() !== token.id"
-                 [class.border-blue-500]="token.type === 'npc' && !isAffected(token) && selectedTokenId() !== token.id"
-                 [class.border-black]="token.type === 'boss' && !isAffected(token) && selectedTokenId() !== token.id"
-                 [class.border-stone-400]="!token.type && !isAffected(token) && selectedTokenId() !== token.id"
-                 [class.!border-red-500]="isAffected(token)"
-                 [class.!border-white]="selectedTokenId() === token.id && !isAffected(token)"
-                 [class.shadow-[0_0_15px_rgba(255,255,255,0.8)]]="selectedTokenId() === token.id && !isAffected(token)"
-                 [class.shadow-[0_0_15px_rgba(239,68,68,0.8)]]="isAffected(token)"
-                 [style.backgroundColor]="token.color"
-                 [style.width.px]="gridSize"
-                 [style.height.px]="gridSize"
-                 [cdkDragFreeDragPosition]="{x: token.x * gridSize, y: token.y * gridSize}"
-                 cdkDrag
-                 [cdkDragBoundary]="boundary"
-                 [cdkDragDisabled]="!canMove(token)"
-                 (cdkDragEnded)="onDragEnded($event, token)"
-                 (click)="onTokenClick(token, $event)"
-                 (keydown.enter)="onTokenClick(token, $event)">
+                 (mousemove)="onMouseMove($event)"
+                 (click)="onClick($event)"
+                 (keydown.enter)="onClick()">
+            </div>
+
+            <!-- Area Preview SVG -->
+            @if (previewAbility()) {
+              <svg class="absolute inset-0 w-full h-full pointer-events-none z-25">
+                <path [attr.d]="areaPath()" fill="rgba(245, 158, 11, 0.3)" stroke="#f59e0b" stroke-width="2" />
+              </svg>
+            }
+
+            <!-- Measure Line -->
+            @if (combat.isMeasuring() && combat.measureStart() && combat.measureCurrent()) {
+              <svg class="absolute inset-0 w-full h-full pointer-events-none z-40">
+                <line 
+                  [attr.x1]="combat.measureStart()!.x" 
+                  [attr.y1]="combat.measureStart()!.y" 
+                  [attr.x2]="combat.measureCurrent()!.x" 
+                  [attr.y2]="combat.measureCurrent()!.y" 
+                  stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,5" />
+                <circle [attr.cx]="combat.measureStart()!.x" [attr.cy]="combat.measureStart()!.y" r="4" fill="#f59e0b" />
+                <circle [attr.cx]="combat.measureCurrent()!.x" [attr.cy]="combat.measureCurrent()!.y" r="4" fill="#f59e0b" />
+              </svg>
+              
+              <!-- Distance Label -->
+              <div class="absolute z-50 bg-stone-900/90 text-amber-500 text-xs font-bold px-2 py-1 rounded border border-amber-500/50 pointer-events-none transform -translate-x-1/2 -translate-y-full mt-[-10px]"
+                   [style.left.px]="combat.measureCurrent()!.x"
+                   [style.top.px]="combat.measureCurrent()!.y">
+                {{ measureDistance() }}m
+              </div>
+            }
+
+            @for (token of tokens(); track token.id) {
+              <div class="absolute top-0 left-0 rounded-full shadow-lg border-2 flex flex-col items-center justify-center transition-shadow hover:shadow-amber-500/50 z-30 group"
+                   tabindex="0"
+                   [class.cursor-grab]="canMove(token)"
+                   [class.active:cursor-grabbing]="canMove(token)"
+                   [class.cursor-not-allowed]="!canMove(token)"
+                   [class.border-yellow-400]="token.type === 'player' && !isAffected(token) && selectedTokenId() !== token.id"
+                   [class.border-red-500]="token.type === 'enemy' && !isAffected(token) && selectedTokenId() !== token.id"
+                   [class.border-blue-500]="token.type === 'npc' && !isAffected(token) && selectedTokenId() !== token.id"
+                   [class.border-black]="token.type === 'boss' && !isAffected(token) && selectedTokenId() !== token.id"
+                   [class.border-stone-400]="!token.type && !isAffected(token) && selectedTokenId() !== token.id"
+                   [class.!border-red-500]="isAffected(token)"
+                   [class.!border-white]="selectedTokenId() === token.id && !isAffected(token)"
+                   [class.shadow-[0_0_15px_rgba(255,255,255,0.8)]]="selectedTokenId() === token.id && !isAffected(token)"
+                   [class.shadow-[0_0_15px_rgba(239,68,68,0.8)]]="isAffected(token)"
+                   [style.backgroundColor]="token.color"
+                   [style.width.px]="gridSize"
+                   [style.height.px]="gridSize"
+                   [cdkDragFreeDragPosition]="{x: token.x * gridSize, y: token.y * gridSize}"
+                   cdkDrag
+                   [cdkDragBoundary]="boundary"
+                   [cdkDragDisabled]="!canMove(token)"
+                   (cdkDragEnded)="onDragEnded($event, token)"
+                   (click)="onTokenClick(token, $event)"
+                   (keydown.enter)="onTokenClick(token, $event)">
               
               <!-- Token Image or Initials -->
               @if (token.imageUrl) {
@@ -149,6 +174,11 @@ export class GridComponent {
 
   // State
   tokens = this.combat.tokens;
+  mapWidth = signal<number>(2000); // Default large size
+  mapHeight = signal<number>(2000);
+  
+  private isPanning = false;
+  private lastPanPos = { x: 0, y: 0 };
 
   measureDistance = computed(() => {
     const start = this.combat.measureStart();
@@ -325,15 +355,68 @@ export class GridComponent {
     return false;
   }
 
+  onMapLoad(event: Event) {
+    const img = event.target as HTMLImageElement;
+    if (img.naturalWidth && img.naturalHeight) {
+      this.mapWidth.set(img.naturalWidth);
+      this.mapHeight.set(img.naturalHeight);
+    }
+  }
+
+  onWheel(event: WheelEvent) {
+    event.preventDefault();
+    const zoomSpeed = 0.1;
+    const delta = event.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+    const newZoom = Math.max(0.2, Math.min(3, this.combat.zoom() + delta));
+    
+    // Zoom towards mouse position
+    const rect = this.gridContainer.nativeElement.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    
+    const zoomFactor = newZoom / this.combat.zoom();
+    const newPanX = mouseX - (mouseX - this.combat.pan().x) * zoomFactor;
+    const newPanY = mouseY - (mouseY - this.combat.pan().y) * zoomFactor;
+    
+    this.combat.zoom.set(newZoom);
+    this.combat.pan.set({ x: newPanX, y: newPanY });
+  }
+
+  onMouseDown(event: MouseEvent) {
+    if (event.button === 1 || (event.button === 0 && event.altKey)) {
+      this.isPanning = true;
+      this.lastPanPos = { x: event.clientX, y: event.clientY };
+      event.preventDefault();
+    }
+  }
+
+  onGlobalMouseMove(event: MouseEvent) {
+    if (this.isPanning) {
+      const dx = event.clientX - this.lastPanPos.x;
+      const dy = event.clientY - this.lastPanPos.y;
+      
+      this.combat.pan.update(p => ({ x: p.x + dx, y: p.y + dy }));
+      this.lastPanPos = { x: event.clientX, y: event.clientY };
+    }
+  }
+
+  onMouseUp() {
+    this.isPanning = false;
+  }
+
+  resetView() {
+    this.combat.zoom.set(1);
+    this.combat.pan.set({ x: 0, y: 0 });
+  }
+
   onMouseMove(event: MouseEvent) {
     if (!this.gridContainer) return;
     
     const rect = this.gridContainer.nativeElement.getBoundingClientRect();
-    const scrollLeft = this.gridContainer.nativeElement.scrollLeft;
-    const scrollTop = this.gridContainer.nativeElement.scrollTop;
     
-    const x = event.clientX - rect.left + scrollLeft;
-    const y = event.clientY - rect.top + scrollTop;
+    // Adjust mouse coordinates for zoom and pan
+    const x = (event.clientX - rect.left - this.combat.pan().x) / this.combat.zoom();
+    const y = (event.clientY - rect.top - this.combat.pan().y) / this.combat.zoom();
     
     if (this.combat.isMeasuring() && this.combat.measureStart()) {
       this.combat.measureCurrent.set({x, y});
@@ -344,15 +427,17 @@ export class GridComponent {
     }
   }
 
-  onClick(event?: MouseEvent) {
+  onClick(event?: Event) {
+    if (this.isPanning) return;
+    
+    const mouseEvent = event as MouseEvent;
+    
     if (this.combat.isMeasuring()) {
       if (!this.combat.measureStart()) {
-        if (event && this.gridContainer) {
+        if (mouseEvent && this.gridContainer) {
           const rect = this.gridContainer.nativeElement.getBoundingClientRect();
-          const scrollLeft = this.gridContainer.nativeElement.scrollLeft;
-          const scrollTop = this.gridContainer.nativeElement.scrollTop;
-          const x = event.clientX - rect.left + scrollLeft;
-          const y = event.clientY - rect.top + scrollTop;
+          const x = (mouseEvent.clientX - rect.left - this.combat.pan().x) / this.combat.zoom();
+          const y = (mouseEvent.clientY - rect.top - this.combat.pan().y) / this.combat.zoom();
           this.combat.measureStart.set({x, y});
           this.combat.measureCurrent.set({x, y});
         }
@@ -448,6 +533,7 @@ export class GridComponent {
     }
 
     const dropPoint = event.source.getFreeDragPosition();
+    // Drag point is already in local coordinates relative to boundary
     const currentPixelX = dropPoint.x;
     const currentPixelY = dropPoint.y;
     
@@ -455,9 +541,8 @@ export class GridComponent {
     let newGridY = Math.round(currentPixelY / this.gridSize);
     
     if (this.boundary) {
-      const rect = this.boundary.nativeElement.getBoundingClientRect();
-      const maxGridX = Math.max(0, Math.floor(rect.width / this.gridSize) - 1);
-      const maxGridY = Math.max(0, Math.floor(rect.height / this.gridSize) - 1);
+      const maxGridX = Math.max(0, Math.floor(this.mapWidth() / this.gridSize) - 1);
+      const maxGridY = Math.max(0, Math.floor(this.mapHeight() / this.gridSize) - 1);
       
       newGridX = Math.max(0, Math.min(newGridX, maxGridX));
       newGridY = Math.max(0, Math.min(newGridY, maxGridY));
