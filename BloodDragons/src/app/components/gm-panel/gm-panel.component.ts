@@ -189,11 +189,6 @@ export class GmPanelComponent {
       color,
       type: type as 'player' | 'enemy' | 'npc' | 'boss'
     });
-
-    // Automatically select the new token and open the sheet editor
-    this.combat.selectToken(id);
-    this.combat.rightPanelTab.set('sheet');
-    this.combat.triggerEditSheet.update(v => v + 1);
   }
 
   confirmDeleteToken() {

@@ -16,9 +16,4 @@ export interface Ability {
   
   requiresAttackRoll?: boolean; // true if it targets AC
   attackBonus?: number; // e.g., +5 to hit
-  
-  category?: 'weapon' | 'spell' | 'feature';
-  spellLevel?: number;
-  uses?: number;
-  maxUses?: number;
 }

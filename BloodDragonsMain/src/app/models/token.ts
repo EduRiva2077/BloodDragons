@@ -21,13 +21,7 @@ export interface CharacterSheet {
   
   proficiencyBonus: number;
   passivePerception: number;
-  
-  cp?: number;
-  sp?: number;
-  ep?: number;
-  gp?: number;
-  pp?: number;
-  backpack?: string;
+  inventory?: string;
 }
 
 export interface Token {
