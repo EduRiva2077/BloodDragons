@@ -1,5 +1,5 @@
 import { Component, ChangeDetectionStrategy, inject, signal, computed, effect, untracked } from '@angular/core';
-import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormGroup, FormControl, Validators, FormsModule } from '@angular/forms';
 import { DndMathService } from '../../services/dnd-math.service';
 import { CombatService, AVAILABLE_CONDITIONS } from '../../services/combat.service';
 import { AuthService } from '../../services/auth.service';
@@ -8,11 +8,12 @@ import { TokenCondition } from '../../models/token';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
 import { ActionMenuComponent } from '../action-menu/action-menu.component';
+import { ActionResult } from '../../services/dnd-core-engine.service';
 
 @Component({
   selector: 'app-right-panel',
   standalone: true,
-  imports: [CommonModule, MatIconModule, ReactiveFormsModule, ActionMenuComponent],
+  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, ActionMenuComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="w-80 h-full bg-stone-900 border-l border-stone-800 flex flex-col text-stone-300 relative">
@@ -265,11 +266,11 @@ import { ActionMenuComponent } from '../action-menu/action-menu.component';
                     <div class="space-y-3">
                       @for (ability of weapons(); track ability.id) {
                         <div class="bg-stone-800 rounded border border-stone-700 overflow-hidden shadow-md">
-                          <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50">
+                          <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50 cursor-pointer hover:bg-stone-700/50 transition-colors" (click)="selectAbilityForRoll(ability)">
                             <div class="flex items-center gap-2">
                               <span class="font-bold text-amber-500 text-sm">{{ ability.name }}</span>
                               @if (auth.currentUser()?.role === 'GM' || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                                <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="removeAbility(ability.id)">
+                                <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="removeAbility(ability.id); $event.stopPropagation()">
                                   <mat-icon style="font-size: 14px; width: 14px; height: 14px;">delete</mat-icon>
                                 </button>
                               }
@@ -293,10 +294,101 @@ import { ActionMenuComponent } from '../action-menu/action-menu.component';
                             @if (ability.description) {
                               <p class="text-stone-400">{{ ability.description }}</p>
                             }
-                            <button class="w-full py-1 bg-stone-700 hover:bg-amber-600 hover:text-stone-900 text-stone-300 font-bold rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-stone-700 disabled:hover:text-stone-300 disabled:cursor-not-allowed"
+                            
+                            @if (selectedAbilityForRoll()?.id === ability.id) {
+                              <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                
+                                <!-- Attack Roll -->
+                                <div>
+                                  @if (!isManualRollingAttack()) {
+                                    <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
+                                      ROLAR ATAQUE (d20)
+                                    </button>
+                                  } @else {
+                                    <div class="bg-stone-800 border border-stone-700 rounded p-2">
+                                      <label class="block text-[10px] font-bold text-amber-500 mb-1 text-center">Digite o valor do d20</label>
+                                      <div class="flex gap-1">
+                                        <input type="number" 
+                                               [ngModel]="manualAttackRollValue()" 
+                                               (ngModelChange)="manualAttackRollValue.set($event)"
+                                               class="flex-1 bg-stone-900 border border-stone-600 rounded px-2 py-1 text-center font-mono font-bold text-sm focus:outline-none focus:border-amber-500"
+                                               placeholder="1 a 20"
+                                               (keyup.enter)="confirmAbilityRoll('attack')">
+                                        <button (click)="confirmAbilityRoll('attack')" class="bg-green-600 hover:bg-green-500 text-white px-2 rounded font-bold transition-colors text-xs">OK</button>
+                                        <button (click)="cancelManualAbilityRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-2 rounded transition-colors"><mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon></button>
+                                      </div>
+                                    </div>
+                                  }
+                                  @if (lastAbilityResult()?.attack; as atk) {
+                                    <div class="mt-2 p-2 rounded border bg-stone-800 border-stone-600">
+                                      <div class="flex items-center justify-between mb-1">
+                                        <span class="font-bold text-sm" [class.text-green-400]="atk.success" [class.text-red-400]="!atk.success">
+                                          {{ atk.success ? 'SUCESSO!' : 'FALHA...' }}
+                                        </span>
+                                        <span class="font-mono font-bold text-lg text-stone-200">{{ atk.roll.total }}</span>
+                                      </div>
+                                      <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ atk.roll.log }}</div>
+                                      @if (atk.roll.isCritical) { <div class="mt-1 text-[10px] font-bold text-amber-400 uppercase tracking-widest text-center">Sucesso Crítico!</div> }
+                                      @if (atk.roll.isCriticalFail) { <div class="mt-1 text-[10px] font-bold text-red-500 uppercase tracking-widest text-center">Falha Crítica!</div> }
+                                    </div>
+                                  }
+                                </div>
+
+                                <!-- Damage/Healing Roll -->
+                                @if (ability.damage || ability.healing) {
+                                  <div>
+                                    @if (!isManualRollingDamage()) {
+                                      <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
+                                        ROLAR {{ ability.damage ? 'DANO' : 'CURA' }} ({{ ability.damage || ability.healing }})
+                                      </button>
+                                    } @else {
+                                      <div class="bg-stone-800 border border-stone-700 rounded p-2">
+                                        <label class="block text-[10px] font-bold text-red-400 mb-1 text-center">Digite o valor do {{ ability.damage || ability.healing }}</label>
+                                        <div class="flex gap-1">
+                                          <input type="number" 
+                                                 [ngModel]="manualDamageRollValue()" 
+                                                 (ngModelChange)="manualDamageRollValue.set($event)"
+                                                 class="flex-1 bg-stone-900 border border-stone-600 rounded px-2 py-1 text-center font-mono font-bold text-sm focus:outline-none focus:border-red-500"
+                                                 placeholder="Valor"
+                                                 (keyup.enter)="confirmAbilityRoll('damage')">
+                                          <button (click)="confirmAbilityRoll('damage')" class="bg-green-600 hover:bg-green-500 text-white px-2 rounded font-bold transition-colors text-xs">OK</button>
+                                          <button (click)="cancelManualAbilityRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-2 rounded transition-colors"><mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon></button>
+                                        </div>
+                                      </div>
+                                    }
+                                    @if (lastAbilityResult()?.damage; as dmg) {
+                                      <div class="mt-2 p-2 rounded border bg-red-900/20 border-red-500/50">
+                                        <div class="flex items-center justify-between mb-1">
+                                          <span class="font-bold text-sm text-red-400">DANO</span>
+                                          <span class="font-mono font-bold text-lg text-stone-200">{{ dmg.total }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ dmg.log }}</div>
+                                      </div>
+                                    }
+                                    @if (lastAbilityResult()?.healing; as heal) {
+                                      <div class="mt-2 p-2 rounded border bg-green-900/20 border-green-500/50">
+                                        <div class="flex items-center justify-between mb-1">
+                                          <span class="font-bold text-sm text-green-400">CURA</span>
+                                          <span class="font-mono font-bold text-lg text-stone-200">{{ heal.total }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ heal.log }}</div>
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                                
+                                @if (rollError()) {
+                                  <p class="text-red-400 text-[10px] text-center">{{ rollError() }}</p>
+                                }
+                              </div>
+                            }
+
+                            <button class="w-full py-1 bg-stone-700 hover:bg-amber-600 hover:text-stone-900 text-stone-300 font-bold rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-stone-700 disabled:hover:text-stone-300 disabled:cursor-not-allowed mt-2"
                                     [disabled]="!selectedToken()?.sheet"
                                     (click)="useAbility(ability)">
-                              <mat-icon class="text-sm">my_location</mat-icon> Usar Arma
+                              <mat-icon class="text-sm">my_location</mat-icon> Usar Arma no Mapa
                             </button>
                           </div>
                         </div>
@@ -313,12 +405,12 @@ import { ActionMenuComponent } from '../action-menu/action-menu.component';
                     <div class="space-y-3">
                       @for (ability of spells(); track ability.id) {
                         <div class="bg-stone-800 rounded border border-stone-700 overflow-hidden shadow-md">
-                          <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50">
+                          <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50 cursor-pointer hover:bg-stone-700/50 transition-colors" (click)="selectAbilityForRoll(ability)">
                             <div class="flex items-center gap-2">
                               <span class="font-bold text-amber-500 text-sm">{{ ability.name }}</span>
                               <span class="text-[10px] bg-blue-900/50 text-blue-300 px-1 rounded border border-blue-700/50">Nível {{ ability.spellLevel || 0 }}</span>
                               @if (auth.currentUser()?.role === 'GM' || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                                <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="removeAbility(ability.id)">
+                                <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="removeAbility(ability.id); $event.stopPropagation()">
                                   <mat-icon style="font-size: 14px; width: 14px; height: 14px;">delete</mat-icon>
                                 </button>
                               }
@@ -345,10 +437,101 @@ import { ActionMenuComponent } from '../action-menu/action-menu.component';
                             @if (ability.description) {
                               <p class="text-stone-400">{{ ability.description }}</p>
                             }
-                            <button class="w-full py-1 bg-stone-700 hover:bg-amber-600 hover:text-stone-900 text-stone-300 font-bold rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-stone-700 disabled:hover:text-stone-300 disabled:cursor-not-allowed"
+
+                            @if (selectedAbilityForRoll()?.id === ability.id) {
+                              <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                
+                                <!-- Attack Roll -->
+                                <div>
+                                  @if (!isManualRollingAttack()) {
+                                    <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
+                                      ROLAR ATAQUE (d20)
+                                    </button>
+                                  } @else {
+                                    <div class="bg-stone-800 border border-stone-700 rounded p-2">
+                                      <label class="block text-[10px] font-bold text-amber-500 mb-1 text-center">Digite o valor do d20</label>
+                                      <div class="flex gap-1">
+                                        <input type="number" 
+                                               [ngModel]="manualAttackRollValue()" 
+                                               (ngModelChange)="manualAttackRollValue.set($event)"
+                                               class="flex-1 bg-stone-900 border border-stone-600 rounded px-2 py-1 text-center font-mono font-bold text-sm focus:outline-none focus:border-amber-500"
+                                               placeholder="1 a 20"
+                                               (keyup.enter)="confirmAbilityRoll('attack')">
+                                        <button (click)="confirmAbilityRoll('attack')" class="bg-green-600 hover:bg-green-500 text-white px-2 rounded font-bold transition-colors text-xs">OK</button>
+                                        <button (click)="cancelManualAbilityRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-2 rounded transition-colors"><mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon></button>
+                                      </div>
+                                    </div>
+                                  }
+                                  @if (lastAbilityResult()?.attack; as atk) {
+                                    <div class="mt-2 p-2 rounded border bg-stone-800 border-stone-600">
+                                      <div class="flex items-center justify-between mb-1">
+                                        <span class="font-bold text-sm" [class.text-green-400]="atk.success" [class.text-red-400]="!atk.success">
+                                          {{ atk.success ? 'SUCESSO!' : 'FALHA...' }}
+                                        </span>
+                                        <span class="font-mono font-bold text-lg text-stone-200">{{ atk.roll.total }}</span>
+                                      </div>
+                                      <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ atk.roll.log }}</div>
+                                      @if (atk.roll.isCritical) { <div class="mt-1 text-[10px] font-bold text-amber-400 uppercase tracking-widest text-center">Sucesso Crítico!</div> }
+                                      @if (atk.roll.isCriticalFail) { <div class="mt-1 text-[10px] font-bold text-red-500 uppercase tracking-widest text-center">Falha Crítica!</div> }
+                                    </div>
+                                  }
+                                </div>
+
+                                <!-- Damage/Healing Roll -->
+                                @if (ability.damage || ability.healing) {
+                                  <div>
+                                    @if (!isManualRollingDamage()) {
+                                      <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
+                                        ROLAR {{ ability.damage ? 'DANO' : 'CURA' }} ({{ ability.damage || ability.healing }})
+                                      </button>
+                                    } @else {
+                                      <div class="bg-stone-800 border border-stone-700 rounded p-2">
+                                        <label class="block text-[10px] font-bold text-red-400 mb-1 text-center">Digite o valor do {{ ability.damage || ability.healing }}</label>
+                                        <div class="flex gap-1">
+                                          <input type="number" 
+                                                 [ngModel]="manualDamageRollValue()" 
+                                                 (ngModelChange)="manualDamageRollValue.set($event)"
+                                                 class="flex-1 bg-stone-900 border border-stone-600 rounded px-2 py-1 text-center font-mono font-bold text-sm focus:outline-none focus:border-red-500"
+                                                 placeholder="Valor"
+                                                 (keyup.enter)="confirmAbilityRoll('damage')">
+                                          <button (click)="confirmAbilityRoll('damage')" class="bg-green-600 hover:bg-green-500 text-white px-2 rounded font-bold transition-colors text-xs">OK</button>
+                                          <button (click)="cancelManualAbilityRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-2 rounded transition-colors"><mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon></button>
+                                        </div>
+                                      </div>
+                                    }
+                                    @if (lastAbilityResult()?.damage; as dmg) {
+                                      <div class="mt-2 p-2 rounded border bg-red-900/20 border-red-500/50">
+                                        <div class="flex items-center justify-between mb-1">
+                                          <span class="font-bold text-sm text-red-400">DANO</span>
+                                          <span class="font-mono font-bold text-lg text-stone-200">{{ dmg.total }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ dmg.log }}</div>
+                                      </div>
+                                    }
+                                    @if (lastAbilityResult()?.healing; as heal) {
+                                      <div class="mt-2 p-2 rounded border bg-green-900/20 border-green-500/50">
+                                        <div class="flex items-center justify-between mb-1">
+                                          <span class="font-bold text-sm text-green-400">CURA</span>
+                                          <span class="font-mono font-bold text-lg text-stone-200">{{ heal.total }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ heal.log }}</div>
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                                
+                                @if (rollError()) {
+                                  <p class="text-red-400 text-[10px] text-center">{{ rollError() }}</p>
+                                }
+                              </div>
+                            }
+
+                            <button class="w-full py-1 bg-stone-700 hover:bg-amber-600 hover:text-stone-900 text-stone-300 font-bold rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-stone-700 disabled:hover:text-stone-300 disabled:cursor-not-allowed mt-2"
                                     [disabled]="!selectedToken()?.sheet"
                                     (click)="useAbility(ability)">
-                              <mat-icon class="text-sm">my_location</mat-icon> Lançar Magia
+                              <mat-icon class="text-sm">my_location</mat-icon> Lançar Magia no Mapa
                             </button>
                           </div>
                         </div>
@@ -365,11 +548,11 @@ import { ActionMenuComponent } from '../action-menu/action-menu.component';
                     <div class="space-y-3">
                       @for (ability of features(); track ability.id) {
                         <div class="bg-stone-800 rounded border border-stone-700 overflow-hidden shadow-md">
-                          <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50">
+                          <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50 cursor-pointer hover:bg-stone-700/50 transition-colors" (click)="selectAbilityForRoll(ability)">
                             <div class="flex items-center gap-2">
                               <span class="font-bold text-amber-500 text-sm">{{ ability.name }}</span>
                               @if (auth.currentUser()?.role === 'GM' || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                                <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="removeAbility(ability.id)">
+                                <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="removeAbility(ability.id); $event.stopPropagation()">
                                   <mat-icon style="font-size: 14px; width: 14px; height: 14px;">delete</mat-icon>
                                 </button>
                               }
@@ -388,11 +571,102 @@ import { ActionMenuComponent } from '../action-menu/action-menu.component';
                             @if (ability.description) {
                               <p class="text-stone-400">{{ ability.description }}</p>
                             }
+
+                            @if (selectedAbilityForRoll()?.id === ability.id) {
+                              <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                
+                                <!-- Attack Roll -->
+                                <div>
+                                  @if (!isManualRollingAttack()) {
+                                    <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
+                                      ROLAR ATAQUE (d20)
+                                    </button>
+                                  } @else {
+                                    <div class="bg-stone-800 border border-stone-700 rounded p-2">
+                                      <label class="block text-[10px] font-bold text-amber-500 mb-1 text-center">Digite o valor do d20</label>
+                                      <div class="flex gap-1">
+                                        <input type="number" 
+                                               [ngModel]="manualAttackRollValue()" 
+                                               (ngModelChange)="manualAttackRollValue.set($event)"
+                                               class="flex-1 bg-stone-900 border border-stone-600 rounded px-2 py-1 text-center font-mono font-bold text-sm focus:outline-none focus:border-amber-500"
+                                               placeholder="1 a 20"
+                                               (keyup.enter)="confirmAbilityRoll('attack')">
+                                        <button (click)="confirmAbilityRoll('attack')" class="bg-green-600 hover:bg-green-500 text-white px-2 rounded font-bold transition-colors text-xs">OK</button>
+                                        <button (click)="cancelManualAbilityRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-2 rounded transition-colors"><mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon></button>
+                                      </div>
+                                    </div>
+                                  }
+                                  @if (lastAbilityResult()?.attack; as atk) {
+                                    <div class="mt-2 p-2 rounded border bg-stone-800 border-stone-600">
+                                      <div class="flex items-center justify-between mb-1">
+                                        <span class="font-bold text-sm" [class.text-green-400]="atk.success" [class.text-red-400]="!atk.success">
+                                          {{ atk.success ? 'SUCESSO!' : 'FALHA...' }}
+                                        </span>
+                                        <span class="font-mono font-bold text-lg text-stone-200">{{ atk.roll.total }}</span>
+                                      </div>
+                                      <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ atk.roll.log }}</div>
+                                      @if (atk.roll.isCritical) { <div class="mt-1 text-[10px] font-bold text-amber-400 uppercase tracking-widest text-center">Sucesso Crítico!</div> }
+                                      @if (atk.roll.isCriticalFail) { <div class="mt-1 text-[10px] font-bold text-red-500 uppercase tracking-widest text-center">Falha Crítica!</div> }
+                                    </div>
+                                  }
+                                </div>
+
+                                <!-- Damage/Healing Roll -->
+                                @if (ability.damage || ability.healing) {
+                                  <div>
+                                    @if (!isManualRollingDamage()) {
+                                      <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
+                                        ROLAR {{ ability.damage ? 'DANO' : 'CURA' }} ({{ ability.damage || ability.healing }})
+                                      </button>
+                                    } @else {
+                                      <div class="bg-stone-800 border border-stone-700 rounded p-2">
+                                        <label class="block text-[10px] font-bold text-red-400 mb-1 text-center">Digite o valor do {{ ability.damage || ability.healing }}</label>
+                                        <div class="flex gap-1">
+                                          <input type="number" 
+                                                 [ngModel]="manualDamageRollValue()" 
+                                                 (ngModelChange)="manualDamageRollValue.set($event)"
+                                                 class="flex-1 bg-stone-900 border border-stone-600 rounded px-2 py-1 text-center font-mono font-bold text-sm focus:outline-none focus:border-red-500"
+                                                 placeholder="Valor"
+                                                 (keyup.enter)="confirmAbilityRoll('damage')">
+                                          <button (click)="confirmAbilityRoll('damage')" class="bg-green-600 hover:bg-green-500 text-white px-2 rounded font-bold transition-colors text-xs">OK</button>
+                                          <button (click)="cancelManualAbilityRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-2 rounded transition-colors"><mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon></button>
+                                        </div>
+                                      </div>
+                                    }
+                                    @if (lastAbilityResult()?.damage; as dmg) {
+                                      <div class="mt-2 p-2 rounded border bg-red-900/20 border-red-500/50">
+                                        <div class="flex items-center justify-between mb-1">
+                                          <span class="font-bold text-sm text-red-400">DANO</span>
+                                          <span class="font-mono font-bold text-lg text-stone-200">{{ dmg.total }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ dmg.log }}</div>
+                                      </div>
+                                    }
+                                    @if (lastAbilityResult()?.healing; as heal) {
+                                      <div class="mt-2 p-2 rounded border bg-green-900/20 border-green-500/50">
+                                        <div class="flex items-center justify-between mb-1">
+                                          <span class="font-bold text-sm text-green-400">CURA</span>
+                                          <span class="font-mono font-bold text-lg text-stone-200">{{ heal.total }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-stone-400 font-mono break-words leading-tight">{{ heal.log }}</div>
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                                
+                                @if (rollError()) {
+                                  <p class="text-red-400 text-[10px] text-center">{{ rollError() }}</p>
+                                }
+                              </div>
+                            }
+
                             @if (ability.type !== 'passive') {
-                              <button class="w-full py-1 bg-stone-700 hover:bg-amber-600 hover:text-stone-900 text-stone-300 font-bold rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-stone-700 disabled:hover:text-stone-300 disabled:cursor-not-allowed"
+                              <button class="w-full py-1 bg-stone-700 hover:bg-amber-600 hover:text-stone-900 text-stone-300 font-bold rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-stone-700 disabled:hover:text-stone-300 disabled:cursor-not-allowed mt-2"
                                       [disabled]="!selectedToken()?.sheet"
                                       (click)="useAbility(ability)">
-                                <mat-icon class="text-sm">my_location</mat-icon> Usar Habilidade
+                                <mat-icon class="text-sm">my_location</mat-icon> Usar Habilidade no Mapa
                               </button>
                             }
                           </div>
@@ -896,6 +1170,18 @@ export class RightPanelComponent {
   isEditingInventory = signal(false);
   inventoryForm = new FormControl('', { nonNullable: true });
 
+  selectedAbilityForRoll = signal<Ability | null>(null);
+  isManualRollingAttack = signal<boolean>(false);
+  manualAttackRollValue = signal<number | null>(null);
+  isManualRollingDamage = signal<boolean>(false);
+  manualDamageRollValue = signal<number | null>(null);
+  rollError = signal<string | null>(null);
+  lastAbilityResult = signal<{
+    attack?: { success: boolean, roll: ActionResult, dc: number },
+    damage?: { total: number, log: string },
+    healing?: { total: number, log: string }
+  } | null>(null);
+
   conditionCategories = [
     {
       name: 'Elementais',
@@ -1062,6 +1348,120 @@ export class RightPanelComponent {
 
     const newAbilities = (token.abilities || []).filter(a => a.id !== id);
     this.combat.updateToken(token.id, { abilities: newAbilities });
+  }
+
+  selectAbilityForRoll(ability: Ability) {
+    this.selectedAbilityForRoll.set(ability);
+    this.lastAbilityResult.set(null);
+    this.cancelManualAbilityRoll();
+  }
+
+  startManualAbilityRoll(type: 'attack' | 'damage') {
+    if (type === 'attack') {
+      this.isManualRollingAttack.set(true);
+      this.manualAttackRollValue.set(null);
+    } else {
+      this.isManualRollingDamage.set(true);
+      this.manualDamageRollValue.set(null);
+    }
+    this.rollError.set(null);
+  }
+
+  cancelManualAbilityRoll() {
+    this.isManualRollingAttack.set(false);
+    this.manualAttackRollValue.set(null);
+    this.isManualRollingDamage.set(false);
+    this.manualDamageRollValue.set(null);
+    this.rollError.set(null);
+  }
+
+  confirmAbilityRoll(type: 'attack' | 'damage') {
+    const ability = this.selectedAbilityForRoll();
+    const token = this.selectedToken();
+    if (!ability || !token) return;
+
+    if (type === 'attack') {
+      const val = this.manualAttackRollValue();
+      if (val === null || val < 1 || val > 20 || !Number.isInteger(val)) {
+        this.rollError.set('Valor não condizente com dado (1 a 20)');
+        return;
+      }
+      this.rollError.set(null);
+      this.isManualRollingAttack.set(false);
+      this.rollAbilityAttack(val);
+    } else {
+      const val = this.manualDamageRollValue();
+      // For damage, we don't know the exact max value easily without parsing the dice string,
+      // but we can just accept any positive integer.
+      if (val === null || val < 1 || !Number.isInteger(val)) {
+        this.rollError.set('Valor não condizente com dado (maior que 0)');
+        return;
+      }
+      this.rollError.set(null);
+      this.isManualRollingDamage.set(false);
+      this.rollAbilityDamage(val);
+    }
+  }
+
+  rollAbilityAttack(manualRoll: number) {
+    const ability = this.selectedAbilityForRoll();
+    const token = this.selectedToken();
+    if (!ability || !token) return;
+
+    const strMod = this.mathService.calculateModifier(token.sheet?.str || 10);
+    const profBonus = token.sheet?.proficiencyBonus || 2;
+    const magicBonus = ability.attackBonus || 0;
+
+    const isCritical = manualRoll === 20;
+    const isCriticalFail = manualRoll === 1;
+    const modifiers = strMod + profBonus + magicBonus;
+    const total = manualRoll + modifiers;
+
+    let log = `d20: [${manualRoll}] + Mod: ${strMod} + Prof: ${profBonus}`;
+    if (magicBonus) log += ` + Magia: ${magicBonus}`;
+    log += ` = ${total}`;
+
+    if (isCritical) log += ' (CRÍTICO!)';
+    if (isCriticalFail) log += ' (FALHA CRÍTICA!)';
+
+    const roll: ActionResult = {
+      total,
+      naturalRoll: manualRoll,
+      modifiers,
+      isCritical,
+      isCriticalFail,
+      log
+    };
+
+    // Default DC for attack is target AC, but we don't have a target here.
+    // We'll just assume a default DC of 15 for the UI success/fail, or just show the total.
+    const dc = 15; 
+    const hitCheck = { success: total >= dc || isCritical };
+
+    const currentResult = this.lastAbilityResult() || {};
+    this.lastAbilityResult.set({
+      ...currentResult,
+      attack: { success: hitCheck.success, roll, dc }
+    });
+  }
+
+  rollAbilityDamage(manualRoll: number) {
+    const ability = this.selectedAbilityForRoll();
+    if (!ability) return;
+
+    const currentResult = this.lastAbilityResult() || {};
+    
+    if (ability.damage) {
+      this.lastAbilityResult.set({
+        ...currentResult,
+        damage: { total: manualRoll, log: `Dano manual: ${manualRoll} (${ability.damage})` }
+      });
+    } else if (ability.healing) {
+      this.lastAbilityResult.set({
+        ...currentResult,
+        healing: { total: manualRoll, log: `Cura manual: ${manualRoll} (${ability.healing})` }
+      });
+    }
   }
 
   useAbility(ability: Ability) {
