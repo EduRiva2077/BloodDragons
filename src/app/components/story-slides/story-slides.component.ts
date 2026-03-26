@@ -26,11 +26,19 @@ export interface Slide {
       <!-- Top Controls -->
       <div class="absolute top-4 right-4 z-30 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
         @if (auth.currentUser()?.role === 'GM') {
-          <label class="cursor-pointer bg-stone-900/80 text-[#b8860b] hover:text-amber-400 hover:bg-stone-800 px-3 py-1 rounded text-xs font-serif border border-[#b8860b]/50 backdrop-blur-sm flex items-center gap-2 transition-colors">
+          <label class="cursor-pointer bg-stone-900/80 text-[#b8860b] hover:text-amber-400 hover:bg-stone-800 px-3 py-1 rounded text-xs font-serif border border-[#b8860b]/50 backdrop-blur-sm flex items-center gap-2 transition-colors" title="Adicionar uma única imagem">
             <mat-icon style="font-size: 16px; width: 16px; height: 16px;">add_photo_alternate</mat-icon>
             Nova Cena
             <input type="file" accept="image/*" class="hidden" (change)="uploadNewSlide($event)">
           </label>
+          <label class="cursor-pointer bg-stone-900/80 text-[#b8860b] hover:text-amber-400 hover:bg-stone-800 px-3 py-1 rounded text-xs font-serif border border-[#b8860b]/50 backdrop-blur-sm flex items-center gap-2 transition-colors" title="Adicionar pasta ou múltiplas imagens (Pack de Atos)">
+            <mat-icon style="font-size: 16px; width: 16px; height: 16px;">folder_open</mat-icon>
+            Upload Pack
+            <input type="file" accept="image/*" multiple webkitdirectory directory class="hidden" (change)="uploadPack($event)">
+          </label>
+          <button (click)="deleteCurrentSlide()" class="w-8 h-8 flex items-center justify-center bg-stone-900/80 text-red-500 hover:text-red-400 hover:bg-stone-800 rounded border border-red-900/50 backdrop-blur-sm transition-colors" title="Excluir Cena Atual">
+            <mat-icon style="font-size: 18px; width: 18px; height: 18px;">delete</mat-icon>
+          </button>
           <label class="cursor-pointer bg-stone-900/80 text-[#b8860b] hover:text-amber-400 hover:bg-stone-800 px-3 py-1 rounded text-xs font-serif border border-[#b8860b]/50 backdrop-blur-sm flex items-center gap-2 transition-colors">
             <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
             Alterar Imagem
@@ -190,6 +198,62 @@ export class StorySlidesComponent {
     
     reader.readAsDataURL(file);
     input.value = ''; // Reset input
+  }
+
+  async uploadPack(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const files = Array.from(input.files).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    // Optional: Ask for a pack title
+    const packTitle = prompt('Título do Pack (opcional):', 'Novo Pack');
+    
+    const newSlides: Slide[] = [];
+    
+    for (const file of files) {
+      const result = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
+      });
+      
+      // Use filename as title if no pack title, or combine them
+      const fileName = file.name.split('.').slice(0, -1).join('.');
+      const title = packTitle ? `${packTitle} - ${fileName}` : fileName;
+      
+      newSlides.push({
+        url: result,
+        title: title,
+        description: `Imagem do pack ${packTitle || 'sem título'}`
+      });
+    }
+
+    this.combat.addStorySlides(newSlides);
+    
+    // Move to the first new slide
+    setTimeout(() => {
+      this.currentIndex.set(this.slides().length - newSlides.length);
+    }, 100);
+
+    input.value = ''; // Reset input
+  }
+
+  deleteCurrentSlide() {
+    if (this.slides().length === 0) return;
+    
+    const index = this.currentIndex();
+    if (confirm(`Deseja realmente excluir a cena "${this.slides()[index].title}"?`)) {
+      this.combat.deleteStorySlide(index);
+      
+      // Adjust index if we deleted the last slide
+      if (this.currentIndex() >= this.slides().length && this.slides().length > 0) {
+        this.currentIndex.set(this.slides().length - 1);
+      } else if (this.slides().length === 0) {
+        this.currentIndex.set(0);
+      }
+    }
   }
 
   updateCurrentSlideImage(event: Event) {

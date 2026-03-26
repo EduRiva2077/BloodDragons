@@ -307,6 +307,14 @@ export class CombatService {
     this.storySlides.update(slides => [...slides, slide]);
   }
 
+  addStorySlides(newSlides: {url: string, title: string, description: string}[]) {
+    this.storySlides.update(slides => [...slides, ...newSlides]);
+  }
+
+  deleteStorySlide(index: number) {
+    this.storySlides.update(slides => slides.filter((_, i) => i !== index));
+  }
+
   toggleFogCell(x: number, y: number, hide: boolean) {
     const key = `${x},${y}`;
     this.fogOfWar.update(fog => {

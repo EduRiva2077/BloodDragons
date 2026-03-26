@@ -5,6 +5,8 @@ import { DndMathService } from '../../services/dnd-math.service';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 
+import { Token } from '../../models/token';
+
 @Component({
   selector: 'app-bottom-bar',
   standalone: true,
@@ -16,7 +18,7 @@ import { MatIconModule } from '@angular/material/icon';
       <!-- Left: App Info -->
       <div class="flex items-center gap-3">
         <div class="flex flex-col">
-          <span class="text-sm font-bold text-stone-200"><span class="text-red-600">Blood</span>Dragons 1.1</span>
+          <span class="text-sm font-bold text-stone-200"><span class="text-red-600">Blood</span>Dragons 1.2</span>
           <span class="text-[10px] font-mono text-amber-500">{{ currentUser()?.role }}</span>
         </div>
       </div>
@@ -385,7 +387,7 @@ export class BottomBarComponent {
       const token = this.combat.tokens().find(t => t.id === id);
       if (!token) continue;
 
-      const updates: any = {
+      const updates: Partial<Token> = {
         hp: token.maxHp,
         mp: token.maxMp
       };

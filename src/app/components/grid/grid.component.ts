@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef } from '@angular/core';
 import { CdkDragEnd, DragDropModule } from '@angular/cdk/drag-drop';
 import { DndMathService } from '../../services/dnd-math.service';
 import { AuthService } from '../../services/auth.service';
