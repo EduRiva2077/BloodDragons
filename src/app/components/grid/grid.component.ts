@@ -1,5 +1,6 @@
 import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef } from '@angular/core';
 import { CdkDragEnd, DragDropModule } from '@angular/cdk/drag-drop';
+import { FormsModule } from '@angular/forms';
 import { DndMathService } from '../../services/dnd-math.service';
 import { AuthService } from '../../services/auth.service';
 import { CombatService } from '../../services/combat.service';
@@ -11,7 +12,7 @@ import { Ability } from '../../models/ability';
 @Component({
   selector: 'app-grid',
   standalone: true,
-  imports: [CommonModule, DragDropModule, MatIconModule],
+  imports: [CommonModule, DragDropModule, MatIconModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="relative w-full h-full overflow-hidden bg-stone-950 flex flex-col" 
@@ -184,10 +185,39 @@ import { Ability } from '../../models/ability';
           }
         </div>
       </div>
+
+      <!-- Horizontal Scrollbar -->
+      <div class="absolute bottom-0 left-0 right-0 h-4 bg-stone-900/90 border-t border-stone-800 z-40 flex items-center px-1">
+        <input type="range" 
+               class="w-full h-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:bg-stone-700 transition-colors"
+               [min]="-mapWidth() * combat.zoom()" 
+               [max]="mapWidth() * combat.zoom()" 
+               [ngModel]="-combat.pan().x" 
+               (ngModelChange)="onHorizontalScroll($event)"
+               title="Mover mapa horizontalmente">
+      </div>
     </div>
   `,
   styles: [`
     .text-shadow { text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+    
+    /* Custom Range Input Styling */
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none;
+      width: 40px;
+      height: 12px;
+      background: #f59e0b;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 40px;
+      height: 12px;
+      background: #f59e0b;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+    }
   `]
 })
 export class GridComponent {
@@ -213,6 +243,10 @@ export class GridComponent {
   
   private isPanning = false;
   private lastPanPos = { x: 0, y: 0 };
+
+  onHorizontalScroll(value: number) {
+    this.combat.pan.update(p => ({ x: -value, y: p.y }));
+  }
 
   measureDistance = computed(() => {
     const start = this.combat.measureStart();
