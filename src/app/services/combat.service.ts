@@ -78,6 +78,8 @@ export class CombatService {
   mapBackgroundImage = signal<string | null>(null); // URL da imagem de fundo
   showGrid = signal<boolean>(false); // Toggle grid visibility
   uiVisible = signal<boolean>(true); // Toggle all UI panels
+  gmPanelVisible = signal<boolean>(false); // Toggle GM panel
+  isPlayMode = signal<boolean>(false); // Toggle between GM and Play mode for GMs
   rightPanelTab = signal<'sheet' | 'inventory' | 'actions'>('sheet'); // Control right panel tab
   triggerEditSheet = signal<number>(0); // Trigger to open sheet edit mode
   
@@ -161,6 +163,8 @@ export class CombatService {
   updateToken(id: string, updates: Partial<Token>) {
     let xpToDistribute = 0;
     let enemyName = '';
+    let movedPlayerX: number | null = null;
+    let movedPlayerY: number | null = null;
 
     this.tokens.update(ts => ts.map(t => {
       if (t.id !== id) return t;
@@ -182,11 +186,21 @@ export class CombatService {
         enemyName = updatedToken.name;
       }
       
+      // Check if player moved
+      if (t.type === 'player' && (('x' in updates && updates.x !== t.x) || ('y' in updates && updates.y !== t.y))) {
+        movedPlayerX = updatedToken.x;
+        movedPlayerY = updatedToken.y;
+      }
+      
       return updatedToken;
     }));
 
     if (xpToDistribute > 0) {
       this.distributeXP(xpToDistribute, enemyName);
+    }
+    
+    if (movedPlayerX !== null && movedPlayerY !== null) {
+      this.revealFogAround(movedPlayerX, movedPlayerY);
     }
   }
 
@@ -272,6 +286,9 @@ export class CombatService {
 
   addToken(token: Token) {
     this.tokens.update(ts => [...ts, token]);
+    if (token.type === 'player') {
+      this.revealFogAround(token.x, token.y);
+    }
   }
 
   deleteToken(id: string) {
@@ -307,6 +324,14 @@ export class CombatService {
     this.storySlides.update(slides => [...slides, slide]);
   }
 
+  addStorySlides(newSlides: {url: string, title: string, description: string}[]) {
+    this.storySlides.update(slides => [...slides, ...newSlides]);
+  }
+
+  deleteStorySlide(index: number) {
+    this.storySlides.update(slides => slides.filter((_, i) => i !== index));
+  }
+
   toggleFogCell(x: number, y: number, hide: boolean) {
     const key = `${x},${y}`;
     this.fogOfWar.update(fog => {
@@ -334,6 +359,37 @@ export class CombatService {
       }
     }
     this.fogOfWar.set(newFog);
+
+    // Auto-reveal around all players
+    const players = this.tokens().filter(t => t.type === 'player');
+    players.forEach(p => {
+      this.revealFogAround(p.x, p.y);
+    });
+  }
+
+  revealFogAround(x: number, y: number, radius = 4) {
+    if (!this.isFogEnabled()) return;
+    
+    this.fogOfWar.update(fog => {
+      const fogSet = new Set(fog);
+      let changed = false;
+      
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          if (dx*dx + dy*dy <= radius*radius) {
+            const cx = Math.floor(x + dx);
+            const cy = Math.floor(y + dy);
+            const key = `${cx},${cy}`;
+            if (fogSet.has(key)) {
+              fogSet.delete(key);
+              changed = true;
+            }
+          }
+        }
+      }
+      
+      return changed ? Array.from(fogSet) : fog;
+    });
   }
 
   updateStorySlide(index: number, updates: Partial<{url: string, title: string, description: string}>) {
@@ -342,6 +398,18 @@ export class CombatService {
       if (newSlides[index]) {
         newSlides[index] = { ...newSlides[index], ...updates };
       }
+      return newSlides;
+    });
+  }
+
+  reorderStorySlide(fromIndex: number, toIndex: number) {
+    this.storySlides.update(slides => {
+      if (fromIndex < 0 || fromIndex >= slides.length || toIndex < 0 || toIndex >= slides.length) {
+        return slides;
+      }
+      const newSlides = [...slides];
+      const [movedSlide] = newSlides.splice(fromIndex, 1);
+      newSlides.splice(toIndex, 0, movedSlide);
       return newSlides;
     });
   }

@@ -1,5 +1,6 @@
-import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, inject, ViewChild, ElementRef } from '@angular/core';
 import { CdkDragEnd, DragDropModule } from '@angular/cdk/drag-drop';
+import { FormsModule } from '@angular/forms';
 import { DndMathService } from '../../services/dnd-math.service';
 import { AuthService } from '../../services/auth.service';
 import { CombatService } from '../../services/combat.service';
@@ -11,7 +12,7 @@ import { Ability } from '../../models/ability';
 @Component({
   selector: 'app-grid',
   standalone: true,
-  imports: [CommonModule, DragDropModule, MatIconModule],
+  imports: [CommonModule, DragDropModule, MatIconModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="relative w-full h-full overflow-hidden bg-stone-950 flex flex-col" 
@@ -59,9 +60,9 @@ import { Ability } from '../../models/ability';
               <div class="absolute inset-0 pointer-events-none z-25 overflow-hidden">
                 @for (cell of combat.fogOfWar(); track cell) {
                   @let coords = getCoords(cell);
-                  <div class="absolute bg-stone-950 transition-opacity duration-300"
-                       [class.opacity-100]="currentUser()?.role !== 'GM'"
-                       [class.opacity-60]="currentUser()?.role === 'GM'"
+                  <div class="absolute bg-black transition-opacity duration-300"
+                       [class.opacity-100]="currentUser()?.role !== 'GM' || combat.isPlayMode()"
+                       [class.opacity-80]="currentUser()?.role === 'GM' && !combat.isPlayMode()"
                        [style.left.px]="coords.x * gridSize"
                        [style.top.px]="coords.y * gridSize"
                        [style.width.px]="gridSize"
@@ -109,44 +110,47 @@ import { Ability } from '../../models/ability';
             }
 
             @for (token of tokens(); track token.id) {
-              <div class="absolute top-0 left-0 shadow-lg border-2 flex flex-col items-center justify-center transition-shadow hover:shadow-amber-500/50 z-30 group"
-                   tabindex="0"
-                   [class.rounded-full]="token.type !== 'item'"
-                   [class.rounded-md]="token.type === 'item'"
-                   [class.cursor-grab]="canMove(token)"
-                   [class.active:cursor-grabbing]="canMove(token)"
-                   [class.cursor-not-allowed]="!canMove(token)"
-                   [class.border-yellow-400]="token.type === 'player' && !isAffected(token) && selectedTokenId() !== token.id"
-                   [class.border-red-500]="token.type === 'enemy' && !isAffected(token) && selectedTokenId() !== token.id"
-                   [class.border-blue-500]="token.type === 'npc' && !isAffected(token) && selectedTokenId() !== token.id"
-                   [class.border-black]="token.type === 'boss' && !isAffected(token) && selectedTokenId() !== token.id"
-                   [class.border-purple-500]="token.type === 'item' && !isAffected(token) && selectedTokenId() !== token.id"
-                   [class.border-stone-400]="!token.type && !isAffected(token) && selectedTokenId() !== token.id"
-                   [class.!border-red-500]="isAffected(token)"
-                   [class.!border-white]="selectedTokenId() === token.id && !isAffected(token)"
-                   [class.shadow-[0_0_15px_rgba(255,255,255,0.8)]]="selectedTokenId() === token.id && !isAffected(token)"
-                   [class.shadow-[0_0_15px_rgba(239,68,68,0.8)]]="isAffected(token)"
-                   [style.backgroundColor]="token.color"
-                   [style.width.px]="gridSize"
-                   [style.height.px]="gridSize"
-                   [cdkDragFreeDragPosition]="{x: token.x * gridSize, y: token.y * gridSize}"
-                   cdkDrag
-                   [cdkDragBoundary]="boundary"
-                   [cdkDragDisabled]="!canMove(token)"
-                   (cdkDragEnded)="onDragEnded($event, token)"
-                   (click)="onTokenClick(token, $event)"
-                   (keydown.enter)="onTokenClick(token, $event)">
-              
-              <!-- Token Image or Initials -->
-              @if (token.imageUrl) {
-                <img [src]="token.imageUrl" class="w-full h-full object-cover pointer-events-none" [class.rounded-full]="token.type !== 'item'" [class.rounded-md]="token.type === 'item'" alt="Token" referrerpolicy="no-referrer" />
-              } @else {
-                <span class="font-bold text-white text-shadow pointer-events-none">{{ token.name | slice:0:2 }}</span>
-              }
+              @if (!isTokenHiddenByFog(token)) {
+                <div class="absolute top-0 left-0 shadow-lg border-2 flex flex-col items-center justify-center transition-shadow hover:shadow-amber-500/50 z-30 group"
+                     tabindex="0"
+                     [class.opacity-40]="isTokenInFog(token) && currentUser()?.role === 'GM' && !combat.isPlayMode() && token.type !== 'player'"
+                     [class.grayscale]="isTokenInFog(token) && currentUser()?.role === 'GM' && !combat.isPlayMode() && token.type !== 'player'"
+                     [class.rounded-full]="token.type !== 'item'"
+                     [class.rounded-md]="token.type === 'item'"
+                     [class.cursor-grab]="canMove(token)"
+                     [class.active:cursor-grabbing]="canMove(token)"
+                     [class.cursor-not-allowed]="!canMove(token)"
+                     [class.border-yellow-400]="token.type === 'player' && !isAffected(token) && selectedTokenId() !== token.id"
+                     [class.border-red-500]="token.type === 'enemy' && !isAffected(token) && selectedTokenId() !== token.id"
+                     [class.border-blue-500]="token.type === 'npc' && !isAffected(token) && selectedTokenId() !== token.id"
+                     [class.border-black]="token.type === 'boss' && !isAffected(token) && selectedTokenId() !== token.id"
+                     [class.border-purple-500]="token.type === 'item' && !isAffected(token) && selectedTokenId() !== token.id"
+                     [class.border-stone-400]="!token.type && !isAffected(token) && selectedTokenId() !== token.id"
+                     [class.!border-red-500]="isAffected(token)"
+                     [class.!border-white]="selectedTokenId() === token.id && !isAffected(token)"
+                     [class.shadow-[0_0_15px_rgba(255,255,255,0.8)]]="selectedTokenId() === token.id && !isAffected(token)"
+                     [class.shadow-[0_0_15px_rgba(239,68,68,0.8)]]="isAffected(token)"
+                     [style.backgroundColor]="token.color"
+                     [style.width.px]="gridSize"
+                     [style.height.px]="gridSize"
+                     [cdkDragFreeDragPosition]="{x: token.x * gridSize, y: token.y * gridSize}"
+                     cdkDrag
+                     [cdkDragDisabled]="!canMove(token)"
+                     (cdkDragEnded)="onDragEnded($event, token)"
+                     (click)="onTokenClick(token, $event)"
+                     (dblclick)="onTokenDoubleClick(token, $event)"
+                     (keydown.enter)="onTokenClick(token, $event)">
+                
+                <!-- Token Image or Initials -->
+                @if (token.imageUrl) {
+                  <img [src]="token.imageUrl" class="w-full h-full object-cover pointer-events-none" [class.rounded-full]="token.type !== 'item'" [class.rounded-md]="token.type === 'item'" alt="Token" referrerpolicy="no-referrer" />
+                } @else {
+                  <span class="font-bold text-white text-shadow pointer-events-none">{{ token.name | slice:0:2 }}</span>
+                }
 
-              <!-- Status Bars -->
-              @if (token.type !== 'item') {
-                <div class="absolute -bottom-5 left-0 right-0 flex flex-col gap-0.5 pointer-events-none">
+                <!-- Status Bars -->
+                @if (token.type !== 'item') {
+                  <div class="absolute -bottom-5 left-0 right-0 flex flex-col gap-0.5 pointer-events-none">
                   <!-- HP Bar -->
                   <div class="h-1.5 bg-red-900 rounded-full overflow-hidden border border-stone-900">
                     <div class="h-full bg-green-500 transition-all duration-300" [style.width.%]="(token.hp / token.maxHp) * 100"></div>
@@ -176,13 +180,68 @@ import { Ability } from '../../models/ability';
                 {{ token.name }} @if (token.type !== 'item') { | PV: {{ token.hp }}/{{ token.maxHp }} @if (token.maxMp > 0) { | Mana: {{ token.mp }}/{{ token.maxMp }} } }
               </div>
             </div>
+            }
           }
         </div>
+      </div>
+
+      <!-- Horizontal Scrollbar -->
+      <div class="absolute bottom-0 left-0 right-4 h-4 bg-stone-900/90 border-t border-stone-800 z-40 flex items-center px-1">
+        <input type="range" 
+               class="w-full h-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:bg-stone-700 transition-colors"
+               [min]="-mapWidth() * combat.zoom()" 
+               [max]="mapWidth() * combat.zoom()" 
+               [ngModel]="-combat.pan().x" 
+               (ngModelChange)="onHorizontalScroll($event)"
+               title="Mover mapa horizontalmente">
+      </div>
+
+      <!-- Vertical Scrollbar -->
+      <div class="absolute top-0 bottom-4 right-0 w-4 bg-stone-900/90 border-l border-stone-800 z-40 flex justify-center py-1">
+        <input type="range" 
+               class="h-full w-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:bg-stone-700 transition-colors vertical-slider"
+               [min]="-mapHeight() * combat.zoom()" 
+               [max]="mapHeight() * combat.zoom()" 
+               [ngModel]="-combat.pan().y" 
+               (ngModelChange)="onVerticalScroll($event)"
+               title="Mover mapa verticalmente">
       </div>
     </div>
   `,
   styles: [`
     .text-shadow { text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+    
+    /* Custom Range Input Styling */
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none;
+      width: 40px;
+      height: 12px;
+      background: #f59e0b;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 40px;
+      height: 12px;
+      background: #f59e0b;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Vertical Slider */
+    input[type=range].vertical-slider {
+      -webkit-appearance: slider-vertical;
+      writing-mode: bt-lr;
+    }
+    input[type=range].vertical-slider::-webkit-slider-thumb {
+      width: 12px;
+      height: 40px;
+    }
+    input[type=range].vertical-slider::-moz-range-thumb {
+      width: 12px;
+      height: 40px;
+    }
   `]
 })
 export class GridComponent {
@@ -208,6 +267,14 @@ export class GridComponent {
   
   private isPanning = false;
   private lastPanPos = { x: 0, y: 0 };
+
+  onHorizontalScroll(value: number) {
+    this.combat.pan.update(p => ({ x: -value, y: p.y }));
+  }
+
+  onVerticalScroll(value: number) {
+    this.combat.pan.update(p => ({ x: p.x, y: -value }));
+  }
 
   measureDistance = computed(() => {
     const start = this.combat.measureStart();
@@ -317,6 +384,20 @@ export class GridComponent {
 
   isAffected(token: Token): boolean {
     return this.affectedTokens().some(t => t.id === token.id);
+  }
+
+  isTokenInFog(token: Token): boolean {
+    if (!this.combat.isFogEnabled()) return false;
+    const gridX = Math.floor(token.x + 0.5);
+    const gridY = Math.floor(token.y + 0.5);
+    const cell = `${gridX},${gridY}`;
+    return this.combat.fogOfWar().includes(cell);
+  }
+
+  isTokenHiddenByFog(token: Token): boolean {
+    if (this.currentUser()?.role === 'GM' && !this.combat.isPlayMode()) return false; // GM always sees everything unless in Play mode
+    if (token.type === 'player') return false; // Players can always see other players for now
+    return this.isTokenInFog(token);
   }
 
   getCoords(cell: string): {x: number, y: number} {
@@ -587,16 +668,28 @@ export class GridComponent {
     this.combat.selectToken(token.id);
   }
 
+  onTokenDoubleClick(token: Token, event: Event) {
+    if (this.combat.isFogEditMode() && this.currentUser()?.role === 'GM') return;
+    if (this.combat.isMeasuring() || this.combat.previewAbility()) return;
+    
+    event.stopPropagation();
+    this.combat.selectToken(token.id);
+    this.combat.uiVisible.set(true);
+    this.combat.rightPanelTab.set('sheet');
+  }
+
   onDragEnded(event: CdkDragEnd, token: Token) {
     if (!this.canMove(token)) {
       event.source.reset();
       return;
     }
 
-    const dropPoint = event.source.getFreeDragPosition();
-    // Drag point is already in local coordinates relative to boundary
-    const currentPixelX = dropPoint.x;
-    const currentPixelY = dropPoint.y;
+    // Calculate new position based on distance dragged and current zoom
+    const distanceX = event.distance.x / this.combat.zoom();
+    const distanceY = event.distance.y / this.combat.zoom();
+    
+    const currentPixelX = (token.x * this.gridSize) + distanceX;
+    const currentPixelY = (token.y * this.gridSize) + distanceY;
     
     let newGridX = Math.round(currentPixelX / this.gridSize);
     let newGridY = Math.round(currentPixelY / this.gridSize);

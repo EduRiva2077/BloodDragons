@@ -146,25 +146,40 @@ interface TestOption {
               </span>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="grid grid-cols-1 gap-3 mb-4">
               <div class="flex flex-col gap-1">
                 <label for="dcInput" class="text-[10px] uppercase text-stone-500 font-bold">Dificuldade (CD)</label>
                 <input id="dcInput" type="number" [(ngModel)]="dc" class="bg-stone-800 border border-stone-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-amber-500 text-center font-mono font-bold">
               </div>
-              <div class="flex flex-col gap-1">
-                <label for="rollModeSelect" class="text-[10px] uppercase text-stone-500 font-bold">Vantagem</label>
-                <select id="rollModeSelect" [(ngModel)]="rollMode" class="bg-stone-800 border border-stone-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-amber-500">
-                  <option value="normal">Normal</option>
-                  <option value="advantage">Vantagem</option>
-                  <option value="disadvantage">Desvantagem</option>
-                </select>
-              </div>
             </div>
 
-            <button (click)="rollTest()" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
-              <mat-icon style="font-size: 18px; width: 18px; height: 18px;">casino</mat-icon>
-              ROLAR DADO
-            </button>
+            @if (!isManualRolling()) {
+              <button (click)="startManualRoll()" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
+                <mat-icon style="font-size: 18px; width: 18px; height: 18px;">casino</mat-icon>
+                ROLAR DADO
+              </button>
+            } @else {
+              <div class="bg-stone-800 border border-stone-700 rounded p-3 animate-in fade-in slide-in-from-bottom-2">
+                <label for="manualD20Roll" class="block text-xs font-bold text-amber-500 mb-2 text-center">Digite o valor do d20</label>
+                <div class="flex gap-2">
+                  <input id="manualD20Roll" #manualInput type="number" 
+                         [ngModel]="manualRollValue()" 
+                         (ngModelChange)="manualRollValue.set($event)"
+                         class="flex-1 bg-stone-900 border border-stone-600 rounded px-3 py-2 text-center font-mono font-bold text-lg focus:outline-none focus:border-amber-500"
+                         placeholder="1 a 20"
+                         (keyup.enter)="confirmRoll()">
+                  <button (click)="confirmRoll()" class="bg-green-600 hover:bg-green-500 text-white px-4 rounded font-bold transition-colors">
+                    OK
+                  </button>
+                  <button (click)="cancelManualRoll()" class="bg-stone-700 hover:bg-stone-600 text-white px-3 rounded transition-colors">
+                    <mat-icon style="font-size: 18px; width: 18px; height: 18px;">close</mat-icon>
+                  </button>
+                </div>
+                @if (rollError()) {
+                  <p class="text-red-400 text-[10px] mt-2 text-center">{{ rollError() }}</p>
+                }
+              </div>
+            }
 
             <!-- Result Area -->
             @if (lastResult()) {
@@ -236,9 +251,12 @@ export class ActionMenuComponent {
   testType = signal<'attribute' | 'skill' | 'save' | null>(null);
   
   dc = signal<number>(15);
-  rollMode = signal<'normal' | 'advantage' | 'disadvantage'>('normal');
   
   lastResult = signal<{success: boolean, roll: ActionResult, dc: number} | null>(null);
+
+  isManualRolling = signal<boolean>(false);
+  manualRollValue = signal<number | null>(null);
+  rollError = signal<string | null>(null);
 
   attributes: TestOption[] = [
     { id: 'str', name: 'Força', attr: 'str', icon: 'fitness_center' },
@@ -278,9 +296,34 @@ export class ActionMenuComponent {
     this.selectedTest.set(test);
     this.testType.set(type);
     this.lastResult.set(null); // Clear previous result
+    this.cancelManualRoll();
   }
 
-  rollTest() {
+  startManualRoll() {
+    this.isManualRolling.set(true);
+    this.manualRollValue.set(null);
+    this.rollError.set(null);
+  }
+
+  cancelManualRoll() {
+    this.isManualRolling.set(false);
+    this.manualRollValue.set(null);
+    this.rollError.set(null);
+  }
+
+  confirmRoll() {
+    const val = this.manualRollValue();
+    if (val === null || val < 1 || val > 20 || !Number.isInteger(val)) {
+      this.rollError.set('Valor não condizente com dado (1 a 20)');
+      return;
+    }
+    
+    this.rollError.set(null);
+    this.isManualRolling.set(false);
+    this.rollTest(val);
+  }
+
+  rollTest(manualRoll: number) {
     const token = this.selectedToken();
     const test = this.selectedTest();
     const type = this.testType();
@@ -317,7 +360,23 @@ export class ActionMenuComponent {
     }
 
     // 3. Roll
-    const roll = this.engine.calculateAttackRoll(modifier, profBonus, 0, this.rollMode());
+    const isCritical = manualRoll === 20;
+    const isCriticalFail = manualRoll === 1;
+    const modifiers = modifier + profBonus;
+    const total = manualRoll + modifiers;
+
+    let log = `d20: [${manualRoll}] + Mod: ${modifier} + Prof: ${profBonus} = ${total}`;
+    if (isCritical) log += ' (CRÍTICO!)';
+    if (isCriticalFail) log += ' (FALHA CRÍTICA!)';
+
+    const roll: ActionResult = {
+      total,
+      naturalRoll: manualRoll,
+      modifiers,
+      isCritical,
+      isCriticalFail,
+      log
+    };
     
     // 4. Validate
     const hitCheck = this.engine.validateSuccess(roll.total, this.dc());

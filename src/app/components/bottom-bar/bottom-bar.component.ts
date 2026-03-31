@@ -5,6 +5,8 @@ import { DndMathService } from '../../services/dnd-math.service';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 
+import { Token } from '../../models/token';
+
 @Component({
   selector: 'app-bottom-bar',
   standalone: true,
@@ -14,11 +16,30 @@ import { MatIconModule } from '@angular/material/icon';
     <div class="h-14 bg-stone-900 border-t border-stone-800 flex items-center justify-between px-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-30 relative">
       
       <!-- Left: App Info -->
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <div class="flex flex-col">
-          <span class="text-sm font-bold text-stone-200"><span class="text-red-600">Blood</span>Dragons 1.1</span>
-          <span class="text-[10px] font-mono text-amber-500">{{ currentUser()?.role }}</span>
+          <span class="text-sm font-bold text-stone-200"><span class="text-red-600">Blood</span>Dragons 1.2</span>
         </div>
+
+        <!-- GM / Play Toggle -->
+        @if (currentUser()?.role === 'GM') {
+          <div class="flex bg-stone-950 rounded-full p-0.5 border border-stone-800 shadow-inner">
+            <button class="px-3 py-1 rounded-full text-[10px] font-bold transition-all"
+                    [class.bg-amber-600]="!combat.isPlayMode()"
+                    [class.text-stone-900]="!combat.isPlayMode()"
+                    [class.text-stone-500]="combat.isPlayMode()"
+                    (click)="combat.isPlayMode.set(false)">
+              GM
+            </button>
+            <button class="px-3 py-1 rounded-full text-[10px] font-bold transition-all"
+                    [class.bg-amber-600]="combat.isPlayMode()"
+                    [class.text-stone-900]="combat.isPlayMode()"
+                    [class.text-stone-500]="!combat.isPlayMode()"
+                    (click)="combat.isPlayMode.set(true)">
+              PLAY
+            </button>
+          </div>
+        }
       </div>
 
       <!-- Center: Quick Actions -->
@@ -32,16 +53,48 @@ import { MatIconModule } from '@angular/material/icon';
                 <mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon>
               </button>
             </div>
-            <div class="grid grid-cols-4 gap-2">
-              @for (sides of [4, 6, 8, 10, 12, 20, 100]; track sides) {
-                <button class="bg-stone-800 hover:bg-amber-600 hover:text-stone-900 border border-stone-700 rounded py-1 text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 group"
-                        (click)="rollDice(sides)">
-                  <span class="text-[10px] text-stone-500 group-hover:text-stone-900">d{{ sides }}</span>
-                  <mat-icon class="text-amber-500 group-hover:text-stone-900" style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
-                </button>
-              }
-            </div>
-            @if (lastRollResult() !== null) {
+
+            @if (selectedDieForInput() === null) {
+              <div class="grid grid-cols-4 gap-2">
+                @for (sides of [4, 6, 8, 10, 12, 20, 100]; track sides) {
+                  <button class="bg-stone-800 hover:bg-amber-600 hover:text-stone-900 border border-stone-700 rounded py-1 text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 group"
+                          (click)="selectDieForInput(sides)">
+                    <span class="text-[10px] text-stone-500 group-hover:text-stone-900">d{{ sides }}</span>
+                    <mat-icon class="text-amber-500 group-hover:text-stone-900" style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
+                  </button>
+                }
+              </div>
+            } @else {
+              <div class="flex flex-col gap-2">
+                <div class="text-xs text-stone-300 mb-1">Valor rolado no <strong>d{{ selectedDieForInput() }}</strong>:</div>
+                
+                @if (selectedDieForInput() === 100) {
+                  <select #rollInput100 class="bg-stone-800 border border-stone-700 rounded px-2 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-500 w-full">
+                    @for (val of [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]; track val) {
+                      <option [value]="val">{{ val }}</option>
+                    }
+                  </select>
+                  @if (rollError()) {
+                    <div class="text-red-500 text-[10px] mt-1 text-center font-bold">{{ rollError() }}</div>
+                  }
+                  <div class="flex gap-2 mt-2">
+                    <button class="flex-1 py-1.5 bg-stone-700 hover:bg-stone-600 text-stone-300 text-xs font-bold rounded transition-colors" (click)="selectedDieForInput.set(null); rollError.set(null)">Cancelar</button>
+                    <button class="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 text-xs font-bold rounded transition-colors" (click)="confirmManualRoll(rollInput100.value)">Confirmar</button>
+                  </div>
+                } @else {
+                  <input #rollInputOther type="number" [min]="1" [max]="selectedDieForInput()!" class="bg-stone-800 border border-stone-700 rounded px-2 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-500 w-full" [placeholder]="'1 a ' + selectedDieForInput()">
+                  @if (rollError()) {
+                    <div class="text-red-500 text-[10px] mt-1 text-center font-bold">{{ rollError() }}</div>
+                  }
+                  <div class="flex gap-2 mt-2">
+                    <button class="flex-1 py-1.5 bg-stone-700 hover:bg-stone-600 text-stone-300 text-xs font-bold rounded transition-colors" (click)="selectedDieForInput.set(null); rollError.set(null)">Cancelar</button>
+                    <button class="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 text-xs font-bold rounded transition-colors" (click)="confirmManualRoll(rollInputOther.value)">Confirmar</button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (lastRollResult() !== null && selectedDieForInput() === null) {
               <div class="mt-3 bg-stone-800 rounded p-2 text-center border border-stone-700">
                 <div class="text-[10px] text-stone-400 uppercase">Resultado (d{{ lastRollSides() }})</div>
                 <div class="font-mono font-bold text-amber-500 text-2xl">{{ lastRollResult() }}</div>
@@ -84,7 +137,7 @@ import { MatIconModule } from '@angular/material/icon';
                 </div>
               }
               
-              @if (groupedTokens().boss.length) {
+              @if (groupedTokens().boss.length && !combat.isPlayMode()) {
                 <div>
                   <div class="text-[10px] font-bold text-amber-500 uppercase border-b border-stone-800 pb-1 mb-2">Chefes</div>
                   <div class="flex flex-col gap-1">
@@ -97,7 +150,7 @@ import { MatIconModule } from '@angular/material/icon';
                 </div>
               }
 
-              @if (groupedTokens().enemy.length) {
+              @if (groupedTokens().enemy.length && !combat.isPlayMode()) {
                 <div>
                   <div class="text-[10px] font-bold text-amber-500 uppercase border-b border-stone-800 pb-1 mb-2">Inimigos</div>
                   <div class="flex flex-col gap-1">
@@ -123,7 +176,7 @@ import { MatIconModule } from '@angular/material/icon';
                 </div>
               }
 
-              @if (groupedTokens().item.length) {
+              @if (groupedTokens().item.length && !combat.isPlayMode()) {
                 <div>
                   <div class="text-[10px] font-bold text-amber-500 uppercase border-b border-stone-800 pb-1 mb-2">Itens</div>
                   <div class="flex flex-col gap-1">
@@ -212,7 +265,7 @@ import { MatIconModule } from '@angular/material/icon';
         </button>
         <div class="w-px h-6 bg-stone-700 mx-1 self-center"></div>
         
-        @if (currentUser()?.role === 'GM') {
+        @if (currentUser()?.role === 'GM' && !combat.isPlayMode()) {
           <button class="relative w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
                   [class.text-amber-500]="combat.showStorySlides()"
                   [class.border-amber-500]="combat.showStorySlides()"
@@ -225,15 +278,30 @@ import { MatIconModule } from '@angular/material/icon';
               <span class="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-stone-900 animate-pulse"></span>
             }
           </button>
+
+          <button class="relative w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
+                  [class.text-amber-500]="combat.gmPanelVisible()"
+                  [class.border-amber-500]="combat.gmPanelVisible()"
+                  [class.bg-amber-500/10]="combat.gmPanelVisible()"
+                  [class.shadow-[0_0_15px_rgba(245,158,11,0.2)]]="combat.gmPanelVisible()"
+                  (click)="combat.gmPanelVisible.set(!combat.gmPanelVisible())"
+                  title="Mapa & Tokens">
+            <mat-icon style="font-size: 20px; width: 20px; height: 20px;">history_edu</mat-icon>
+            @if (combat.gmPanelVisible()) {
+              <span class="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-stone-900 animate-pulse"></span>
+            }
+          </button>
         }
 
-        <button class="w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
-                [class.text-amber-500]="combat.showGrid()"
-                [class.border-amber-500]="combat.showGrid()"
-                (click)="combat.showGrid.set(!combat.showGrid())"
-                title="Alternar Grade">
-          <mat-icon style="font-size: 20px; width: 20px; height: 20px;">grid_on</mat-icon>
-        </button>
+        @if (!combat.isPlayMode()) {
+          <button class="w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
+                  [class.text-amber-500]="combat.showGrid()"
+                  [class.border-amber-500]="combat.showGrid()"
+                  (click)="combat.showGrid.set(!combat.showGrid())"
+                  title="Alternar Grade">
+            <mat-icon style="font-size: 20px; width: 20px; height: 20px;">grid_on</mat-icon>
+          </button>
+        }
         <button class="relative w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
                 [class.text-amber-500]="combat.isMeasuring()"
                 [class.border-amber-500]="combat.isMeasuring()"
@@ -277,6 +345,8 @@ export class BottomBarComponent {
   searchQuery = signal<string>('');
   lastRollResult = signal<number | null>(null);
   lastRollSides = signal<number | null>(null);
+  selectedDieForInput = signal<number | null>(null);
+  rollError = signal<string | null>(null);
 
   selectedToken = computed(() => {
     const id = this.combat.selectedTokenId();
@@ -305,6 +375,8 @@ export class BottomBarComponent {
     if (this.showDiceTray()) {
       this.showSheetList.set(false);
       this.showRestMenu.set(false);
+      this.selectedDieForInput.set(null);
+      this.rollError.set(null);
     }
   }
 
@@ -363,6 +435,39 @@ export class BottomBarComponent {
     this.showSheetList.set(false);
   }
 
+  selectDieForInput(sides: number) {
+    this.selectedDieForInput.set(sides);
+    this.rollError.set(null);
+  }
+
+  confirmManualRoll(valueStr: string) {
+    const val = parseInt(valueStr, 10);
+    const sides = this.selectedDieForInput();
+    if (!sides) return;
+
+    if (isNaN(val)) {
+      this.rollError.set('Digite um valor válido.');
+      return;
+    }
+
+    if (sides === 100) {
+      if (val < 10 || val > 100 || val % 10 !== 0) {
+        this.rollError.set('Valor não condizente com dado');
+        return;
+      }
+    } else {
+      if (val < 1 || val > sides) {
+        this.rollError.set('Valor não condizente com dado');
+        return;
+      }
+    }
+
+    this.rollError.set(null);
+    this.lastRollResult.set(val);
+    this.lastRollSides.set(sides);
+    this.selectedDieForInput.set(null);
+  }
+
   rollDice(sides: number) {
     const result = this.mathService.rollDice(sides);
     this.lastRollResult.set(result);
@@ -385,7 +490,7 @@ export class BottomBarComponent {
       const token = this.combat.tokens().find(t => t.id === id);
       if (!token) continue;
 
-      const updates: any = {
+      const updates: Partial<Token> = {
         hp: token.maxHp,
         mp: token.maxMp
       };
