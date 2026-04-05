@@ -44,6 +44,39 @@ interface TestOption {
         <!-- Accordion Categories -->
         <div class="flex-1 p-2 space-y-2">
           
+          <!-- Habilidades / Ações -->
+          @if (selectedToken()?.abilities?.length) {
+            <div class="border border-stone-700 rounded bg-stone-800 overflow-hidden">
+              <button class="w-full px-3 py-2 flex items-center justify-between text-sm font-bold text-stone-300 hover:bg-stone-700 transition-colors"
+                      (click)="toggleCategory('abilities')">
+                <div class="flex items-center gap-2">
+                  <mat-icon class="text-amber-500" style="font-size: 18px; width: 18px; height: 18px;">local_fire_department</mat-icon>
+                  Ações e Magias
+                </div>
+                <mat-icon style="font-size: 18px; width: 18px; height: 18px;">
+                  {{ expandedCategory() === 'abilities' ? 'expand_less' : 'expand_more' }}
+                </mat-icon>
+              </button>
+              
+              @if (expandedCategory() === 'abilities') {
+                <div class="p-2 bg-stone-900/50 flex flex-col gap-1">
+                  @for (ability of selectedToken()?.abilities; track ability.id) {
+                    <button class="text-left px-3 py-2 rounded text-xs hover:bg-amber-900/30 hover:text-amber-400 transition-colors border border-stone-700 hover:border-amber-500/50 flex items-center justify-between gap-2"
+                            (click)="useAbility(ability)">
+                      <div class="flex items-center gap-2">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;" class="opacity-70" [ngClass]="{'text-blue-400': ability.category === 'spell'}">
+                          {{ ability.category === 'spell' ? 'auto_fix_high' : 'colorize' }}
+                        </mat-icon>
+                        <span class="font-bold">{{ ability.name }}</span>
+                      </div>
+                      <mat-icon style="font-size: 14px; width: 14px; height: 14px;" class="text-stone-500">my_location</mat-icon>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
+
           <!-- Atributos -->
           <div class="border border-stone-700 rounded bg-stone-800 overflow-hidden">
             <button class="w-full px-3 py-2 flex items-center justify-between text-sm font-bold text-stone-300 hover:bg-stone-700 transition-colors"
@@ -245,7 +278,7 @@ export class ActionMenuComponent {
     return this.combat.tokens().find(t => t.id === id) || null;
   });
 
-  expandedCategory = signal<'attributes' | 'skills' | 'saves' | null>('skills');
+  expandedCategory = signal<'abilities' | 'attributes' | 'skills' | 'saves' | null>('abilities');
   
   selectedTest = signal<TestOption | null>(null);
   testType = signal<'attribute' | 'skill' | 'save' | null>(null);
@@ -288,8 +321,14 @@ export class ActionMenuComponent {
     { id: 'survival', name: 'Sobrevivência', attr: 'wis', icon: 'explore' }
   ];
 
-  toggleCategory(cat: 'attributes' | 'skills' | 'saves') {
+  toggleCategory(cat: 'abilities' | 'attributes' | 'skills' | 'saves') {
     this.expandedCategory.set(this.expandedCategory() === cat ? null : cat);
+  }
+
+  useAbility(ability: any) {
+    const token = this.selectedToken();
+    if (!token) return;
+    this.combat.startPreview(ability, token);
   }
 
   selectTest(test: TestOption, type: 'attribute' | 'skill' | 'save') {
