@@ -10,6 +10,15 @@ export interface ActionResult {
   log: string;
 }
 
+export interface AttackRollResult {
+  total: number;
+  naturalRoll: number;
+  attributeUsed: string;
+  modifier: number;
+  isCritical: boolean;
+  isFumble: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -45,11 +54,58 @@ export class DndCoreEngineService {
   // 2. Combate Total
   // ==========================================
 
+  calculateAttackRoll(
+    attacker: { stats: Record<string, number>, proficiencyBonus: number, spellcastingAbility?: string },
+    weapon: { name: string, properties?: string[], attackBonus?: number },
+    isSpell: boolean,
+    manualRoll?: number
+  ): AttackRollResult {
+    const naturalRoll = manualRoll || Math.floor(Math.random() * 20) + 1;
+    let attributeUsed = 'str';
+    let attributeScore = attacker.stats['str'] || 10;
+
+    if (isSpell) {
+      attributeUsed = attacker.spellcastingAbility || 'int';
+      attributeScore = attacker.stats[attributeUsed] || 10;
+    } else {
+      const properties = weapon.properties || [];
+      if (properties.includes('ranged')) {
+        attributeUsed = 'dex';
+        attributeScore = attacker.stats['dex'] || 10;
+      } else if (properties.includes('finesse')) {
+        const str = attacker.stats['str'] || 10;
+        const dex = attacker.stats['dex'] || 10;
+        if (dex > str) {
+          attributeUsed = 'dex';
+          attributeScore = dex;
+        } else {
+          attributeUsed = 'str';
+          attributeScore = str;
+        }
+      } else {
+        attributeUsed = 'str';
+        attributeScore = attacker.stats['str'] || 10;
+      }
+    }
+
+    const modifier = this.calculateModifier(attributeScore);
+    const total = naturalRoll + modifier + (attacker.proficiencyBonus || 0) + (weapon.attackBonus || 0);
+
+    return {
+      total,
+      naturalRoll,
+      attributeUsed,
+      modifier,
+      isCritical: naturalRoll === 20,
+      isFumble: naturalRoll === 1
+    };
+  }
+
   /**
    * Calcula um ataque completo (d20 + Mod + Prof + Bonus Mágico)
    * Identifica Crítico (20 natural) e Falha Crítica (1 natural)
    */
-  calculateAttackRoll(
+  executeAttackRoll(
     modifier: number, 
     proficiency: number, 
     magicBonus = 0, 

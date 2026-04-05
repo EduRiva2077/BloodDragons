@@ -10,10 +10,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
 import { ItemInteractionModalComponent } from '../item-interaction-modal/item-interaction-modal.component';
 
+import { AttackModalComponent } from '../attack-modal/attack-modal.component';
+
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [GridComponent, GmPanelComponent, RightPanelComponent, BottomBarComponent, StorySlidesComponent, MatIconModule, CommonModule, ItemInteractionModalComponent],
+  imports: [GridComponent, GmPanelComponent, RightPanelComponent, BottomBarComponent, StorySlidesComponent, MatIconModule, CommonModule, ItemInteractionModalComponent, AttackModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-col h-screen w-screen overflow-hidden bg-black text-stone-200 font-sans">
@@ -47,6 +49,7 @@ import { ItemInteractionModalComponent } from '../item-interaction-modal/item-in
       
       <!-- Modals -->
       <app-item-interaction-modal></app-item-interaction-modal>
+      <app-attack-modal></app-attack-modal>
     </div>
   `
 })

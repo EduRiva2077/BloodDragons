@@ -643,15 +643,9 @@ export class GridComponent {
         
         // Se a habilidade tem dano, aplica dano
         if (ability.damage) {
-          // Para simplificar, usamos o resolveAttack se houver dano
-          // O originToken é quem está usando a habilidade
+          // Em vez de resolver direto, abre o modal de ataque
           if (originToken) {
-            const result = this.combat.resolveAttack(originToken, t, ability);
-            console.log(result.log);
-            
-            if (result.hit && result.damage) {
-              this.combat.updateToken(t.id, { hp: Math.max(0, t.hp - result.damage.total) });
-            }
+            this.combat.openAttackModal(originToken, t, ability);
           }
         }
       });
