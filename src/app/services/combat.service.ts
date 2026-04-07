@@ -1,9 +1,10 @@
-import { Injectable, signal, inject } from '@angular/core';
+import { Injectable, signal, inject, effect } from '@angular/core';
 import { Ability } from '../models/ability';
 import { Token, CharacterSheet } from '../models/token';
 import { DndCoreEngineService, ActionResult } from './dnd-core-engine.service';
 import { ItemToken } from '../models/item-token';
 import { TokenCondition } from '../models/token';
+import { CampaignService } from './campaign.service';
 
 export const AVAILABLE_CONDITIONS: TokenCondition[] = [
   { id: 'fire', name: 'Fogo', icon: 'local_fire_department', color: '#ef4444' },
@@ -66,6 +67,7 @@ const XP_TABLE: Record<number, { xp: number, pb: number }> = {
 @Injectable({ providedIn: 'root' })
 export class CombatService {
   private engine = inject(DndCoreEngineService);
+  private campaignService = inject(CampaignService);
   // Estado de Combate / Preview
   previewAbility = signal<Ability | null>(null);
   previewOrigin = signal<{x: number, y: number} | null>(null);
@@ -147,34 +149,61 @@ export class CombatService {
   mapHeight = signal<number>(2000);
   
   constructor() {
-    // Initialize with some default tokens if needed, or just leave empty
-    this.tokens.set([
-    { 
-      id: 't1', name: 'Guerreiro Bob', x: 2, y: 2, hp: 45, maxHp: 45, spellUses: 0, maxSpellUses: 0, conditions: [], controlledBy: 'user_player_1', color: '#ef4444', type: 'player',
-      sheet: { class: 'Guerreiro', level: 3, background: 'Soldado', playerName: 'Jogador 1', race: 'Humano', alignment: 'Neutro e Bom', xp: 900, hitDie: 10, str: 16, dex: 14, con: 15, int: 10, wis: 12, cha: 8, ac: 16, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 11, hp: 45, maxHp: 45, spellUses: 0, maxSpellUses: 0 },
-      abilities: [
-        { id: 'a1', name: 'Varredura com Espada Longa', type: 'action', category: 'weapon', properties: ['melee'], range: 1.5, areaShape: 'cone', angle: 90, damage: '1d8+3', damageType: 'slashing', description: 'Uma ampla varredura com uma espada longa.' },
-        { id: 'a1_2', name: 'Surto de Ação', type: 'action', category: 'feature', range: 0, description: 'Você pode realizar uma ação adicional além de sua ação normal.', uses: 1, maxUses: 1 }
-      ]
-    },
-    { 
-      id: 't2', name: 'Maga Alice', x: 4, y: 5, hp: 22, maxHp: 22, spellUses: 3, maxSpellUses: 3, conditions: [{ id: 'arcane_armor', name: 'Armadura Arcana', icon: 'shield', color: '#3b82f6' }], controlledBy: 'user_player_2', color: '#3b82f6', type: 'player',
-      sheet: { class: 'Mago', level: 3, background: 'Sábio', playerName: 'Jogador 2', race: 'Elfo', alignment: 'Caótico e Bom', xp: 900, hitDie: 6, str: 8, dex: 14, con: 12, int: 16, wis: 13, cha: 10, ac: 12, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 11, hp: 22, maxHp: 22, spellUses: 3, maxSpellUses: 3, spellcastingAbility: 'int' },
-      abilities: [
-        { id: 'a2', name: 'Bola de Fogo', type: 'action', category: 'spell', spellLevel: 3, range: 45, areaShape: 'circle', radius: 6, damage: '8d6', damageType: 'fire', description: 'Um raio brilhante lampeja do seu dedo apontado para um ponto que você escolher dentro do alcance e então floresce com um rugido baixo em uma explosão de chamas.', uses: 3, maxUses: 3 },
-        { id: 'a3', name: 'Relâmpago', type: 'action', category: 'spell', spellLevel: 3, range: 30, areaShape: 'line', width: 1.5, length: 30, damage: '8d6', damageType: 'lightning', description: 'Um raio formando uma linha de 30m de comprimento e 1.5m de largura.', uses: 2, maxUses: 2 }
-      ]
-    },
-    { 
-      id: 't3', name: 'Chefe Goblin', x: 8, y: 3, hp: 15, maxHp: 25, spellUses: 0, maxSpellUses: 0, conditions: [{ id: 'poison', name: 'Veneno', icon: 'science', color: '#84cc16' }], controlledBy: 'user_gm_1', color: '#22c55e', imageUrl: 'https://picsum.photos/seed/goblin/128/128', type: 'boss',
-      sheet: { class: 'Chefe', level: 1, background: 'Monstro', playerName: 'Mestre', race: 'Goblin', alignment: 'Neutro e Mau', xp: 200, hitDie: 8, str: 14, dex: 14, con: 14, int: 10, wis: 10, cha: 10, ac: 15, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 10, hp: 15, maxHp: 25, spellUses: 0, maxSpellUses: 0 },
-      abilities: [
-        { id: 'a4', name: 'Fenda Goblin', type: 'action', category: 'weapon', properties: ['melee'], range: 1.5, areaShape: 'circle', radius: 1.5, damage: '2d6+2', damageType: 'slashing', description: 'Um ataque giratório selvagem atingindo todos por perto.' }
-      ]
-    },
-    { id: 't4', name: 'Lacaio Goblin', x: 9, y: 4, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0, conditions: [], controlledBy: 'user_gm_1', color: '#22c55e', type: 'enemy', abilities: [{ id: 'a5', name: 'Cimitarra', type: 'action', category: 'weapon', properties: ['finesse', 'melee'], range: 1.5, damage: '1d6+2', damageType: 'slashing', description: 'Ataque corpo-a-corpo.' }], sheet: { class: 'Lacaio', level: 1, background: 'Monstro', playerName: 'Mestre', race: 'Goblin', alignment: 'Neutro e Mau', xp: 50, hitDie: 6, str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8, ac: 13, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 9, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0 } },
-    { id: 't5', name: 'Lacaio Goblin', x: 7, y: 4, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0, conditions: [], controlledBy: 'user_gm_1', color: '#22c55e', type: 'enemy', abilities: [{ id: 'a6', name: 'Cimitarra', type: 'action', category: 'weapon', properties: ['finesse', 'melee'], range: 1.5, damage: '1d6+2', damageType: 'slashing', description: 'Ataque corpo-a-corpo.' }], sheet: { class: 'Lacaio', level: 1, background: 'Monstro', playerName: 'Mestre', race: 'Goblin', alignment: 'Neutro e Mau', xp: 50, hitDie: 6, str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8, ac: 13, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 9, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0 } },
-    ]);
+    effect(() => {
+      const campaign = this.campaignService.activeCampaign();
+      if (campaign) {
+        if (campaign.id === 'test-campaign') {
+          // Load test tokens
+          this.tokens.set([
+            { 
+              id: 't1', name: 'Guerreiro Bob', x: 2, y: 2, hp: 45, maxHp: 45, spellUses: 0, maxSpellUses: 0, conditions: [], controlledBy: 'user_player_1', color: '#ef4444', type: 'player',
+              sheet: { class: 'Guerreiro', level: 3, background: 'Soldado', playerName: 'Jogador 1', race: 'Humano', alignment: 'Neutro e Bom', xp: 900, hitDie: 10, str: 16, dex: 14, con: 15, int: 10, wis: 12, cha: 8, ac: 16, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 11, hp: 45, maxHp: 45, spellUses: 0, maxSpellUses: 0 },
+              abilities: [
+                { id: 'a1', name: 'Varredura com Espada Longa', type: 'action', category: 'weapon', properties: ['melee'], range: 1.5, areaShape: 'cone', angle: 90, damage: '1d8+3', damageType: 'slashing', description: 'Uma ampla varredura com uma espada longa.' },
+                { id: 'a1_2', name: 'Surto de Ação', type: 'action', category: 'feature', range: 0, description: 'Você pode realizar uma ação adicional além de sua ação normal.', uses: 1, maxUses: 1 }
+              ]
+            },
+            { 
+              id: 't2', name: 'Maga Alice', x: 4, y: 5, hp: 22, maxHp: 22, spellUses: 3, maxSpellUses: 3, conditions: [{ id: 'arcane_armor', name: 'Armadura Arcana', icon: 'shield', color: '#3b82f6' }], controlledBy: 'user_player_2', color: '#3b82f6', type: 'player',
+              sheet: { class: 'Mago', level: 3, background: 'Sábio', playerName: 'Jogador 2', race: 'Elfo', alignment: 'Caótico e Bom', xp: 900, hitDie: 6, str: 8, dex: 14, con: 12, int: 16, wis: 13, cha: 10, ac: 12, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 11, hp: 22, maxHp: 22, spellUses: 3, maxSpellUses: 3, spellcastingAbility: 'int' },
+              abilities: [
+                { id: 'a2', name: 'Bola de Fogo', type: 'action', category: 'spell', spellLevel: 3, range: 45, areaShape: 'circle', radius: 6, damage: '8d6', damageType: 'fire', description: 'Um raio brilhante lampeja do seu dedo apontado para um ponto que você escolher dentro do alcance e então floresce com um rugido baixo em uma explosão de chamas.', uses: 3, maxUses: 3 },
+                { id: 'a3', name: 'Relâmpago', type: 'action', category: 'spell', spellLevel: 3, range: 30, areaShape: 'line', width: 1.5, length: 30, damage: '8d6', damageType: 'lightning', description: 'Um raio formando uma linha de 30m de comprimento e 1.5m de largura.', uses: 2, maxUses: 2 }
+              ]
+            },
+            { 
+              id: 't3', name: 'Chefe Goblin', x: 8, y: 3, hp: 15, maxHp: 25, spellUses: 0, maxSpellUses: 0, conditions: [{ id: 'poison', name: 'Veneno', icon: 'science', color: '#84cc16' }], controlledBy: 'user_gm_1', color: '#22c55e', imageUrl: 'https://picsum.photos/seed/goblin/128/128', type: 'boss',
+              sheet: { class: 'Chefe', level: 1, background: 'Monstro', playerName: 'Mestre', race: 'Goblin', alignment: 'Neutro e Mau', xp: 200, hitDie: 8, str: 14, dex: 14, con: 14, int: 10, wis: 10, cha: 10, ac: 15, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 10, hp: 15, maxHp: 25, spellUses: 0, maxSpellUses: 0 },
+              abilities: [
+                { id: 'a4', name: 'Fenda Goblin', type: 'action', category: 'weapon', properties: ['melee'], range: 1.5, areaShape: 'circle', radius: 1.5, damage: '2d6+2', damageType: 'slashing', description: 'Um ataque giratório selvagem atingindo todos por perto.' }
+              ]
+            },
+            { id: 't4', name: 'Lacaio Goblin', x: 9, y: 4, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0, conditions: [], controlledBy: 'user_gm_1', color: '#22c55e', type: 'enemy', abilities: [{ id: 'a5', name: 'Cimitarra', type: 'action', category: 'weapon', properties: ['finesse', 'melee'], range: 1.5, damage: '1d6+2', damageType: 'slashing', description: 'Ataque corpo-a-corpo.' }], sheet: { class: 'Lacaio', level: 1, background: 'Monstro', playerName: 'Mestre', race: 'Goblin', alignment: 'Neutro e Mau', xp: 50, hitDie: 6, str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8, ac: 13, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 9, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0 } },
+            { id: 't5', name: 'Lacaio Goblin', x: 7, y: 4, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0, conditions: [], controlledBy: 'user_gm_1', color: '#22c55e', type: 'enemy', abilities: [{ id: 'a6', name: 'Cimitarra', type: 'action', category: 'weapon', properties: ['finesse', 'melee'], range: 1.5, damage: '1d6+2', damageType: 'slashing', description: 'Ataque corpo-a-corpo.' }], sheet: { class: 'Lacaio', level: 1, background: 'Monstro', playerName: 'Mestre', race: 'Goblin', alignment: 'Neutro e Mau', xp: 50, hitDie: 6, str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8, ac: 13, initiative: 2, speed: 9, proficiencyBonus: 2, passivePerception: 9, hp: 7, maxHp: 7, spellUses: 0, maxSpellUses: 0 } },
+          ]);
+        } else {
+          this.tokens.set(campaign.tokens || []);
+        }
+        if (campaign.mapBackgroundImage) {
+          this.mapBackgroundImage.set(campaign.mapBackgroundImage);
+        } else {
+          this.mapBackgroundImage.set(null);
+        }
+      }
+    });
+
+    // Save tokens and map to campaign when they change
+    effect(() => {
+      const currentTokens = this.tokens();
+      const currentMap = this.mapBackgroundImage();
+      const campaign = this.campaignService.activeCampaign();
+      if (campaign && campaign.id !== 'test-campaign') {
+        this.campaignService.updateActiveCampaign({ 
+          tokens: currentTokens,
+          mapBackgroundImage: currentMap
+        });
+      }
+    });
   }
 
   updateToken(id: string, updates: Partial<Token>) {

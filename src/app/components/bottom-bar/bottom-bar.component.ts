@@ -2,6 +2,7 @@ import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@a
 import { AuthService } from '../../services/auth.service';
 import { CombatService } from '../../services/combat.service';
 import { DndMathService } from '../../services/dnd-math.service';
+import { CampaignService } from '../../services/campaign.service';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -17,6 +18,9 @@ import { Token } from '../../models/token';
       
       <!-- Left: App Info -->
       <div class="flex items-center gap-4">
+        <button (click)="campaignService.exitCampaign()" class="text-stone-400 hover:text-red-500 transition-colors" title="Sair da Campanha">
+          <mat-icon style="font-size: 20px; width: 20px; height: 20px;">exit_to_app</mat-icon>
+        </button>
         <div class="flex flex-col">
           <span class="text-sm font-bold text-stone-200">The <span class="text-blue-500">Elden</span> <span class="text-red-600">Blood</span><span class="text-yellow-500">Moon</span> 1.2</span>
         </div>
@@ -349,6 +353,7 @@ export class BottomBarComponent {
   auth = inject(AuthService);
   combat = inject(CombatService);
   mathService = inject(DndMathService);
+  campaignService = inject(CampaignService);
   currentUser = this.auth.currentUser;
 
   showDiceTray = signal<boolean>(false);
