@@ -98,6 +98,7 @@ export class CombatService {
   
   // Measure Tool State
   isMeasuring = signal<boolean>(false);
+  isPanMode = signal<boolean>(false);
   measureStart = signal<{x: number, y: number} | null>(null);
   measureCurrent = signal<{x: number, y: number} | null>(null);
   

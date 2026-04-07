@@ -32,7 +32,9 @@ import { Ability } from '../../models/ability';
         </div>
       </div>
       
-      <div class="relative flex-1 bg-stone-950 overflow-hidden" #gridContainer>
+      <div class="relative flex-1 bg-stone-950 overflow-hidden" #gridContainer
+           [class.cursor-grab]="combat.isPanMode() && !isPanning"
+           [class.cursor-grabbing]="isPanning">
         <div class="absolute inset-0 origin-top-left transition-transform duration-75 ease-out"
              [style.transform]="'translate(' + combat.pan().x + 'px, ' + combat.pan().y + 'px) scale(' + combat.zoom() + ')'">
           
@@ -120,6 +122,7 @@ import { Ability } from '../../models/ability';
                      [class.cursor-grab]="canMove(token)"
                      [class.active:cursor-grabbing]="canMove(token)"
                      [class.cursor-not-allowed]="!canMove(token)"
+                     [class.pointer-events-none]="combat.isPanMode()"
                      [class.border-yellow-400]="token.type === 'player' && !isAffected(token) && selectedTokenId() !== token.id"
                      [class.border-red-500]="token.type === 'enemy' && !isAffected(token) && selectedTokenId() !== token.id"
                      [class.border-blue-500]="token.type === 'npc' && !isAffected(token) && selectedTokenId() !== token.id"
@@ -135,6 +138,7 @@ import { Ability } from '../../models/ability';
                      [style.height.px]="gridSize"
                      [cdkDragFreeDragPosition]="{x: token.x * gridSize, y: token.y * gridSize}"
                      cdkDrag
+                     [cdkDragScale]="combat.zoom()"
                      [cdkDragDisabled]="!canMove(token)"
                      (cdkDragEnded)="onDragEnded($event, token)"
                      (click)="onTokenClick(token, $event)"
@@ -270,7 +274,8 @@ export class GridComponent {
   mapWidth = this.combat.mapWidth;
   mapHeight = this.combat.mapHeight;
   
-  private isPanning = false;
+  isPanning = false;
+  private hasPanned = false;
   private lastPanPos = { x: 0, y: 0 };
 
   onHorizontalScroll(value: number) {
@@ -381,6 +386,7 @@ export class GridComponent {
   });
 
   canMove(token: Token): boolean {
+    if (this.combat.isPanMode()) return false;
     const user = this.currentUser();
     if (!user) return false;
     if (user.role === 'GM') return true;
@@ -499,7 +505,8 @@ export class GridComponent {
   }
 
   onMouseDown(event: MouseEvent) {
-    if (event.button === 1 || (event.button === 0 && event.altKey)) {
+    this.hasPanned = false;
+    if (event.button === 1 || (event.button === 0 && event.altKey) || (event.button === 0 && this.combat.isPanMode())) {
       this.isPanning = true;
       this.lastPanPos = { x: event.clientX, y: event.clientY };
       event.preventDefault();
@@ -533,6 +540,10 @@ export class GridComponent {
     if (this.isPanning) {
       const dx = event.clientX - this.lastPanPos.x;
       const dy = event.clientY - this.lastPanPos.y;
+      
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+        this.hasPanned = true;
+      }
       
       this.combat.pan.update(p => ({ x: p.x + dx, y: p.y + dy }));
       this.lastPanPos = { x: event.clientX, y: event.clientY };
@@ -572,7 +583,10 @@ export class GridComponent {
   }
 
   onClick(event?: Event) {
-    if (this.isPanning || (this.combat.isFogEditMode() && this.currentUser()?.role === 'GM')) return;
+    if (this.hasPanned || (this.combat.isFogEditMode() && this.currentUser()?.role === 'GM')) {
+      this.hasPanned = false; // Reset for next click
+      return;
+    }
     
     const mouseEvent = event as MouseEvent;
     
@@ -659,6 +673,7 @@ export class GridComponent {
 
   onTokenClick(token: Token, event: Event) {
     if (this.combat.isFogEditMode() && this.currentUser()?.role === 'GM') return;
+    if (this.combat.isPanMode()) return;
     
     if (this.combat.isMeasuring()) {
       const x = (token.x + 0.5) * this.gridSize;
@@ -686,6 +701,7 @@ export class GridComponent {
 
   onTokenDoubleClick(token: Token, event: Event) {
     if (this.combat.isFogEditMode() && this.currentUser()?.role === 'GM') return;
+    if (this.combat.isPanMode()) return;
     if (this.combat.isMeasuring() || this.combat.previewAbility()) return;
     
     event.stopPropagation();
@@ -696,19 +712,14 @@ export class GridComponent {
 
   onDragEnded(event: CdkDragEnd, token: Token) {
     if (!this.canMove(token)) {
-      event.source.reset();
+      event.source._dragRef.reset();
       return;
     }
 
-    // Calculate new position based on distance dragged and current zoom
-    const distanceX = event.distance.x / this.combat.zoom();
-    const distanceY = event.distance.y / this.combat.zoom();
+    const position = event.source.getFreeDragPosition();
     
-    const currentPixelX = (token.x * this.gridSize) + distanceX;
-    const currentPixelY = (token.y * this.gridSize) + distanceY;
-    
-    let newGridX = Math.round(currentPixelX / this.gridSize);
-    let newGridY = Math.round(currentPixelY / this.gridSize);
+    let newGridX = Math.round(position.x / this.gridSize);
+    let newGridY = Math.round(position.y / this.gridSize);
     
     if (this.boundary) {
       const maxGridX = Math.max(0, Math.floor(this.mapWidth() / this.gridSize) - 1);
@@ -721,10 +732,12 @@ export class GridComponent {
       newGridY = Math.max(0, newGridY);
     }
     
-    // Reset the drag position so it can be controlled by the bound cdkDragFreeDragPosition
-    event.source.reset();
-    
+    // Force the token to snap to the grid by updating its position
+    // The binding [cdkDragFreeDragPosition] will automatically move the element
     this.combat.updateToken(token.id, { x: newGridX, y: newGridY });
+    
+    // Explicitly set the free drag position to ensure it snaps even if the grid coordinates didn't change
+    event.source.setFreeDragPosition({x: newGridX * this.gridSize, y: newGridY * this.gridSize});
     
     this.syncToFirestore(token.id, newGridX, newGridY);
   }

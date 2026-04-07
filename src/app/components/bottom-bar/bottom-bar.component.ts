@@ -303,6 +303,19 @@ import { Token } from '../../models/token';
           </button>
         }
         <button class="relative w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
+                [class.text-amber-500]="combat.isPanMode()"
+                [class.border-amber-500]="combat.isPanMode()"
+                [class.bg-amber-500/10]="combat.isPanMode()"
+                [class.shadow-[0_0_15px_rgba(245,158,11,0.2)]]="combat.isPanMode()"
+                (click)="togglePan()"
+                title="Mover Mapa (Mão)">
+          <mat-icon style="font-size: 20px; width: 20px; height: 20px;">pan_tool</mat-icon>
+          @if (combat.isPanMode()) {
+            <span class="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-stone-900 animate-pulse"></span>
+          }
+        </button>
+
+        <button class="relative w-10 h-10 rounded-full bg-stone-800 border border-stone-700 text-stone-400 flex items-center justify-center hover:bg-stone-700 hover:text-amber-500 hover:border-amber-500/50 transition-all" 
                 [class.text-amber-500]="combat.isMeasuring()"
                 [class.border-amber-500]="combat.isMeasuring()"
                 [class.bg-amber-500/10]="combat.isMeasuring()"
@@ -423,6 +436,18 @@ export class BottomBarComponent {
   toggleMeasure() {
     this.combat.isMeasuring.set(!this.combat.isMeasuring());
     if (!this.combat.isMeasuring()) {
+      this.combat.measureStart.set(null);
+      this.combat.measureCurrent.set(null);
+    }
+    if (this.combat.isMeasuring()) {
+      this.combat.isPanMode.set(false);
+    }
+  }
+
+  togglePan() {
+    this.combat.isPanMode.set(!this.combat.isPanMode());
+    if (this.combat.isPanMode()) {
+      this.combat.isMeasuring.set(false);
       this.combat.measureStart.set(null);
       this.combat.measureCurrent.set(null);
     }
