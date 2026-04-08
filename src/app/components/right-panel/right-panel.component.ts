@@ -8,6 +8,7 @@ import { TokenCondition, CharacterSheet } from '../../models/token';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
 import { ActionMenuComponent } from '../action-menu/action-menu.component';
+
 import { ActionResult } from '../../services/dnd-core-engine.service';
 
 @Component({
@@ -367,8 +368,9 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                               <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
                                 
                                 <!-- Attack Roll -->
-                                <div>
-                                  @if (!isManualRollingAttack()) {
+                                @if (ability.attackBonus !== undefined && ability.attackBonus !== null) {
+                                  <div>
+                                    @if (!isManualRollingAttack()) {
                                     <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                       <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
                                       ROLAR ATAQUE (d20)
@@ -402,10 +404,11 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                                     </div>
                                   }
                                 </div>
+                                }
 
                                 <!-- Damage/Healing Roll -->
-                                @if (ability.damage || ability.healing) {
-                                  <div>
+                                @if ((ability.damage || ability.healing) && (ability.attackBonus === undefined || ability.attackBonus === null || lastAbilityResult()?.attack)) {
+                                  <div class="animate-in fade-in slide-in-from-top-2">
                                     @if (!isManualRollingDamage()) {
                                       <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                         <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
@@ -515,8 +518,9 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                               <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
                                 
                                 <!-- Attack Roll -->
-                                <div>
-                                  @if (!isManualRollingAttack()) {
+                                @if (ability.attackBonus !== undefined && ability.attackBonus !== null) {
+                                  <div>
+                                    @if (!isManualRollingAttack()) {
                                     <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                       <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
                                       ROLAR ATAQUE (d20)
@@ -550,10 +554,11 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                                     </div>
                                   }
                                 </div>
+                                }
 
                                 <!-- Damage/Healing Roll -->
-                                @if (ability.damage || ability.healing) {
-                                  <div>
+                                @if ((ability.damage || ability.healing) && (ability.attackBonus === undefined || ability.attackBonus === null || lastAbilityResult()?.attack)) {
+                                  <div class="animate-in fade-in slide-in-from-top-2">
                                     @if (!isManualRollingDamage()) {
                                       <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                         <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
@@ -649,8 +654,9 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                               <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
                                 
                                 <!-- Attack Roll -->
-                                <div>
-                                  @if (!isManualRollingAttack()) {
+                                @if (ability.attackBonus !== undefined && ability.attackBonus !== null) {
+                                  <div>
+                                    @if (!isManualRollingAttack()) {
                                     <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                       <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
                                       ROLAR ATAQUE (d20)
@@ -684,10 +690,11 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                                     </div>
                                   }
                                 </div>
+                                }
 
                                 <!-- Damage/Healing Roll -->
-                                @if (ability.damage || ability.healing) {
-                                  <div>
+                                @if ((ability.damage || ability.healing) && (ability.attackBonus === undefined || ability.attackBonus === null || lastAbilityResult()?.attack)) {
+                                  <div class="animate-in fade-in slide-in-from-top-2">
                                     @if (!isManualRollingDamage()) {
                                       <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                         <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
@@ -781,8 +788,9 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                               <div class="mt-3 p-3 bg-stone-900 rounded border border-stone-700 space-y-3 animate-in fade-in slide-in-from-top-2">
                                 
                                 <!-- Attack Roll -->
-                                <div>
-                                  @if (!isManualRollingAttack()) {
+                                @if (ability.attackBonus !== undefined && ability.attackBonus !== null) {
+                                  <div>
+                                    @if (!isManualRollingAttack()) {
                                     <button (click)="startManualAbilityRoll('attack')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-900 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                       <mat-icon style="font-size: 16px; width: 16px; height: 16px;">casino</mat-icon>
                                       ROLAR ATAQUE (d20)
@@ -816,10 +824,11 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                                     </div>
                                   }
                                 </div>
+                                }
 
                                 <!-- Damage/Healing Roll -->
-                                @if (ability.damage || ability.healing) {
-                                  <div>
+                                @if ((ability.damage || ability.healing) && (ability.attackBonus === undefined || ability.attackBonus === null || lastAbilityResult()?.attack)) {
+                                  <div class="animate-in fade-in slide-in-from-top-2">
                                     @if (!isManualRollingDamage()) {
                                       <button (click)="startManualAbilityRoll('damage')" class="w-full py-1.5 bg-red-800 hover:bg-red-700 text-stone-200 font-bold rounded shadow-lg transition-colors flex items-center justify-center gap-2">
                                         <mat-icon style="font-size: 16px; width: 16px; height: 16px;">bloodtype</mat-icon>
