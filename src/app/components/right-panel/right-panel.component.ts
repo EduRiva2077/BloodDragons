@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed, effect, untracked, HostListener } from '@angular/core';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators, FormsModule } from '@angular/forms';
 import { DndMathService } from '../../services/dnd-math.service';
 import { CombatService, AVAILABLE_CONDITIONS } from '../../services/combat.service';
@@ -71,7 +71,25 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
               <!-- Item Image -->
               @if (selectedToken()?.imageUrl) {
                 <div class="flex justify-center mb-4">
-                  <img [src]="selectedToken()?.imageUrl" class="w-32 h-32 object-contain rounded-md border border-stone-700 shadow-lg bg-stone-800/50" alt="Item Image" referrerpolicy="no-referrer" />
+                  <div class="w-32 h-32 overflow-hidden rounded-md border border-stone-700 shadow-lg bg-stone-800/50 relative group"
+                       [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
+                       [class.cursor-grabbing]="isDraggingImage()"
+                       (mousedown)="onImageDragStart($event)"
+                       (wheel)="onImageWheel($event)">
+                    <img [src]="selectedToken()?.imageUrl" 
+                         class="w-full h-full object-cover pointer-events-none" 
+                         [style.transform]="'scale(' + (selectedToken()?.imageScale || 1) + ') translate(' + (selectedToken()?.imageOffsetX || 0) + 'px, ' + (selectedToken()?.imageOffsetY || 0) + 'px)'"
+                         alt="Item Image" referrerpolicy="no-referrer" />
+                    
+                    @if (isAuthorizedToEditImage()) {
+                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover<br>Role para zoom</span>
+                      </div>
+                      <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10" (click)="resetImageAdjustment(); $event.stopPropagation()" title="Resetar">
+                        <mat-icon style="font-size: 12px; width: 12px; height: 12px;">restart_alt</mat-icon>
+                      </button>
+                    }
+                  </div>
                 </div>
               }
 
@@ -905,7 +923,25 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
             <!-- Token Image -->
             @if (selectedToken()?.imageUrl) {
               <div class="flex justify-center mb-4">
-                <img [src]="selectedToken()?.imageUrl" class="w-32 h-32 object-cover rounded-full border-2 border-stone-700 shadow-lg bg-stone-800/50" alt="Token Image" referrerpolicy="no-referrer" />
+                <div class="w-32 h-32 overflow-hidden rounded-full border-2 border-stone-700 shadow-lg bg-stone-800/50 relative group"
+                     [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
+                     [class.cursor-grabbing]="isDraggingImage()"
+                     (mousedown)="onImageDragStart($event)"
+                     (wheel)="onImageWheel($event)">
+                  <img [src]="selectedToken()?.imageUrl" 
+                       class="w-full h-full object-cover pointer-events-none" 
+                       [style.transform]="'scale(' + (selectedToken()?.imageScale || 1) + ') translate(' + (selectedToken()?.imageOffsetX || 0) + 'px, ' + (selectedToken()?.imageOffsetY || 0) + 'px)'"
+                       alt="Token Image" referrerpolicy="no-referrer" />
+                  
+                  @if (isAuthorizedToEditImage()) {
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover<br>Role para zoom</span>
+                    </div>
+                    <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10" (click)="resetImageAdjustment(); $event.stopPropagation()" title="Resetar">
+                      <mat-icon style="font-size: 12px; width: 12px; height: 12px;">restart_alt</mat-icon>
+                    </button>
+                  }
+                </div>
               </div>
             }
 
@@ -1592,6 +1628,107 @@ export class RightPanelComponent {
 
     const newAbilities = (token.abilities || []).filter(a => a.id !== id);
     this.combat.updateToken(token.id, { abilities: newAbilities });
+  }
+
+  isDraggingImage = signal(false);
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private initialOffsetX = 0;
+  private initialOffsetY = 0;
+
+  isAuthorizedToEditImage = computed(() => {
+    const token = this.selectedToken();
+    if (!token) return false;
+    return (this.auth.currentUser()?.role === 'GM' && !this.combat.isPlayMode()) || token.controlledBy === this.auth.currentUser()?.id;
+  });
+
+  onImageDragStart(event: MouseEvent) {
+    if (!this.isAuthorizedToEditImage()) return;
+    const token = this.selectedToken();
+    if (!token) return;
+
+    event.preventDefault();
+    this.isDraggingImage.set(true);
+    this.dragStartX = event.clientX;
+    this.dragStartY = event.clientY;
+    this.initialOffsetX = token.imageOffsetX || 0;
+    this.initialOffsetY = token.imageOffsetY || 0;
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onImageDragMove(event: MouseEvent) {
+    if (!this.isDraggingImage()) return;
+    
+    const token = this.selectedToken();
+    if (!token) return;
+
+    const dx = event.clientX - this.dragStartX;
+    const dy = event.clientY - this.dragStartY;
+    
+    const currentScale = token.imageScale || 1;
+    // Adjust panning speed based on scale so it feels 1:1
+    const newOffsetX = this.initialOffsetX + (dx / currentScale);
+    const newOffsetY = this.initialOffsetY + (dy / currentScale);
+
+    this.combat.updateToken(token.id, {
+      imageOffsetX: newOffsetX,
+      imageOffsetY: newOffsetY
+    });
+  }
+
+  @HostListener('document:mouseup')
+  onImageDragEnd() {
+    this.isDraggingImage.set(false);
+  }
+
+  onImageWheel(event: WheelEvent) {
+    if (!this.isAuthorizedToEditImage()) return;
+    const token = this.selectedToken();
+    if (!token) return;
+
+    event.preventDefault();
+    
+    const zoomSensitivity = 0.1;
+    const currentScale = token.imageScale || 1;
+    let newScale = currentScale;
+
+    if (event.deltaY < 0) {
+      newScale += zoomSensitivity; // Zoom in
+    } else {
+      newScale -= zoomSensitivity; // Zoom out
+    }
+
+    // Clamp scale
+    newScale = Math.max(0.1, Math.min(newScale, 5));
+
+    this.combat.updateToken(token.id, {
+      imageScale: newScale
+    });
+  }
+
+  resetImageAdjustment() {
+    const token = this.selectedToken();
+    if (!token) return;
+    
+    this.combat.updateToken(token.id, {
+      imageScale: 1,
+      imageOffsetX: 0,
+      imageOffsetY: 0
+    });
+  }
+
+  updateImageAdjustment(property: 'scale' | 'offsetX' | 'offsetY', value: string | number) {
+    const token = this.selectedToken();
+    if (!token) return;
+    
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    const update: any = {};
+    if (property === 'scale') update.imageScale = numValue;
+    if (property === 'offsetX') update.imageOffsetX = numValue;
+    if (property === 'offsetY') update.imageOffsetY = numValue;
+    
+    this.combat.updateToken(token.id, update);
   }
 
   selectAbilityForRoll(ability: Ability) {

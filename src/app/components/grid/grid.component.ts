@@ -147,7 +147,12 @@ import { Ability } from '../../models/ability';
                 
                 <!-- Token Image or Initials -->
                 @if (token.imageUrl) {
-                  <img [src]="token.imageUrl" class="w-full h-full object-cover pointer-events-none" [class.rounded-full]="token.type !== 'item'" [class.rounded-md]="token.type === 'item'" alt="Token" referrerpolicy="no-referrer" />
+                  <div class="w-full h-full overflow-hidden pointer-events-none" [class.rounded-full]="token.type !== 'item'" [class.rounded-md]="token.type === 'item'">
+                    <img [src]="token.imageUrl" 
+                         class="w-full h-full object-cover pointer-events-none" 
+                         [style.transform]="'scale(' + (token.imageScale || 1) + ') translate(' + (token.imageOffsetX || 0) + 'px, ' + (token.imageOffsetY || 0) + 'px)'"
+                         alt="Token" referrerpolicy="no-referrer" />
+                  </div>
                 } @else {
                   <span class="font-bold text-white text-shadow pointer-events-none">{{ token.name | slice:0:2 }}</span>
                 }

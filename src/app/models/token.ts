@@ -60,6 +60,9 @@ export interface Token {
   controlledBy: string;
   color: string;
   imageUrl?: string;
+  imageScale?: number;
+  imageOffsetX?: number;
+  imageOffsetY?: number;
   type?: 'player' | 'enemy' | 'npc' | 'boss' | 'item';
   abilities?: Ability[];
   sheet?: CharacterSheet;
