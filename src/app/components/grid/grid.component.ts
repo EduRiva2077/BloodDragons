@@ -149,8 +149,8 @@ import { Ability } from '../../models/ability';
                 @if (token.imageUrl) {
                   <div class="w-full h-full overflow-hidden pointer-events-none" [class.rounded-full]="token.type !== 'item'" [class.rounded-md]="token.type === 'item'">
                     <img [src]="token.imageUrl" 
-                         class="w-full h-full object-cover pointer-events-none" 
-                         [style.transform]="'scale(' + (token.imageScale || 1) + ') translate(' + (token.imageOffsetX || 0) + 'px, ' + (token.imageOffsetY || 0) + 'px)'"
+                         class="w-full h-full object-contain pointer-events-none" 
+                         [style.transform]="'scale(' + (token.imageScale || 1) + ') translate(' + (token.imageOffsetX || 0) + '%, ' + (token.imageOffsetY || 0) + '%)'"
                          alt="Token" referrerpolicy="no-referrer" />
                   </div>
                 } @else {

@@ -70,26 +70,34 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
             @if (selectedToken()?.type === 'item') {
               <!-- Item Image -->
               @if (selectedToken()?.imageUrl) {
-                <div class="flex justify-center mb-4">
+                <div class="flex flex-col items-center mb-4">
                   <div class="w-32 h-32 overflow-hidden rounded-md border border-stone-700 shadow-lg bg-stone-800/50 relative group"
                        [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
                        [class.cursor-grabbing]="isDraggingImage()"
                        (mousedown)="onImageDragStart($event)"
                        (wheel)="onImageWheel($event)">
                     <img [src]="selectedToken()?.imageUrl" 
-                         class="w-full h-full object-cover pointer-events-none" 
-                         [style.transform]="'scale(' + (selectedToken()?.imageScale || 1) + ') translate(' + (selectedToken()?.imageOffsetX || 0) + 'px, ' + (selectedToken()?.imageOffsetY || 0) + 'px)'"
+                         class="w-full h-full object-contain pointer-events-none" 
+                         [style.transform]="'scale(' + currentImageScale() + ') translate(' + currentImageOffsetX() + '%, ' + currentImageOffsetY() + '%)'"
                          alt="Item Image" referrerpolicy="no-referrer" />
                     
                     @if (isAuthorizedToEditImage()) {
                       <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                        <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover<br>Role para zoom</span>
+                        <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover</span>
                       </div>
                       <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10" (click)="resetImageAdjustment(); $event.stopPropagation()" title="Resetar">
                         <mat-icon style="font-size: 12px; width: 12px; height: 12px;">restart_alt</mat-icon>
                       </button>
                     }
                   </div>
+                  
+                  @if (isAuthorizedToEditImage()) {
+                    <div class="flex items-center gap-2 mt-2 w-32">
+                      <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_out</mat-icon>
+                      <input type="range" min="0.5" max="3" step="0.1" [ngModel]="currentImageScale()" (ngModelChange)="updateImageAdjustment('scale', $event)" class="flex-1 accent-amber-500">
+                      <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_in</mat-icon>
+                    </div>
+                  }
                 </div>
               }
 
@@ -922,26 +930,34 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
           } @else {
             <!-- Token Image -->
             @if (selectedToken()?.imageUrl) {
-              <div class="flex justify-center mb-4">
+              <div class="flex flex-col items-center mb-4">
                 <div class="w-32 h-32 overflow-hidden rounded-full border-2 border-stone-700 shadow-lg bg-stone-800/50 relative group"
                      [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
                      [class.cursor-grabbing]="isDraggingImage()"
                      (mousedown)="onImageDragStart($event)"
                      (wheel)="onImageWheel($event)">
                   <img [src]="selectedToken()?.imageUrl" 
-                       class="w-full h-full object-cover pointer-events-none" 
-                       [style.transform]="'scale(' + (selectedToken()?.imageScale || 1) + ') translate(' + (selectedToken()?.imageOffsetX || 0) + 'px, ' + (selectedToken()?.imageOffsetY || 0) + 'px)'"
+                       class="w-full h-full object-contain pointer-events-none" 
+                       [style.transform]="'scale(' + currentImageScale() + ') translate(' + currentImageOffsetX() + '%, ' + currentImageOffsetY() + '%)'"
                        alt="Token Image" referrerpolicy="no-referrer" />
                   
                   @if (isAuthorizedToEditImage()) {
                     <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                      <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover<br>Role para zoom</span>
+                      <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover</span>
                     </div>
                     <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10" (click)="resetImageAdjustment(); $event.stopPropagation()" title="Resetar">
                       <mat-icon style="font-size: 12px; width: 12px; height: 12px;">restart_alt</mat-icon>
                     </button>
                   }
                 </div>
+                
+                @if (isAuthorizedToEditImage()) {
+                  <div class="flex items-center gap-2 mt-2 w-32">
+                    <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_out</mat-icon>
+                    <input type="range" min="0.5" max="3" step="0.1" [ngModel]="currentImageScale()" (ngModelChange)="updateImageAdjustment('scale', $event)" class="flex-1 accent-amber-500">
+                    <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_in</mat-icon>
+                  </div>
+                }
               </div>
             }
 
@@ -1636,6 +1652,14 @@ export class RightPanelComponent {
   private initialOffsetX = 0;
   private initialOffsetY = 0;
 
+  previewImageScale = signal<number | null>(null);
+  previewImageOffsetX = signal<number | null>(null);
+  previewImageOffsetY = signal<number | null>(null);
+
+  currentImageScale = computed(() => this.previewImageScale() !== null ? this.previewImageScale()! : (this.selectedToken()?.imageScale ?? 1));
+  currentImageOffsetX = computed(() => this.previewImageOffsetX() !== null ? this.previewImageOffsetX()! : (this.selectedToken()?.imageOffsetX ?? 0));
+  currentImageOffsetY = computed(() => this.previewImageOffsetY() !== null ? this.previewImageOffsetY()! : (this.selectedToken()?.imageOffsetY ?? 0));
+
   isAuthorizedToEditImage = computed(() => {
     const token = this.selectedToken();
     if (!token) return false;
@@ -1653,6 +1677,8 @@ export class RightPanelComponent {
     this.dragStartY = event.clientY;
     this.initialOffsetX = token.imageOffsetX || 0;
     this.initialOffsetY = token.imageOffsetY || 0;
+    this.previewImageOffsetX.set(this.initialOffsetX);
+    this.previewImageOffsetY.set(this.initialOffsetY);
   }
 
   @HostListener('document:mousemove', ['$event'])
@@ -1665,21 +1691,39 @@ export class RightPanelComponent {
     const dx = event.clientX - this.dragStartX;
     const dy = event.clientY - this.dragStartY;
     
-    const currentScale = token.imageScale || 1;
-    // Adjust panning speed based on scale so it feels 1:1
-    const newOffsetX = this.initialOffsetX + (dx / currentScale);
-    const newOffsetY = this.initialOffsetY + (dy / currentScale);
+    const currentScale = this.currentImageScale();
+    
+    // The container in the right panel is 128px (w-32 h-32).
+    // Convert the pixel drag distance into a percentage of the container size.
+    const percentDx = (dx / 128) * 100;
+    const percentDy = (dy / 128) * 100;
 
-    this.combat.updateToken(token.id, {
-      imageOffsetX: newOffsetX,
-      imageOffsetY: newOffsetY
-    });
+    // Adjust panning speed based on scale so it feels 1:1
+    const newOffsetX = this.initialOffsetX + (percentDx / currentScale);
+    const newOffsetY = this.initialOffsetY + (percentDy / currentScale);
+
+    this.previewImageOffsetX.set(newOffsetX);
+    this.previewImageOffsetY.set(newOffsetY);
   }
 
   @HostListener('document:mouseup')
   onImageDragEnd() {
+    if (!this.isDraggingImage()) return;
     this.isDraggingImage.set(false);
+    
+    const token = this.selectedToken();
+    if (token && this.previewImageOffsetX() !== null && this.previewImageOffsetY() !== null) {
+      this.combat.updateToken(token.id, {
+        imageOffsetX: this.previewImageOffsetX()!,
+        imageOffsetY: this.previewImageOffsetY()!
+      });
+    }
+    
+    this.previewImageOffsetX.set(null);
+    this.previewImageOffsetY.set(null);
   }
+
+  private wheelTimeout: any;
 
   onImageWheel(event: WheelEvent) {
     if (!this.isAuthorizedToEditImage()) return;
@@ -1689,7 +1733,7 @@ export class RightPanelComponent {
     event.preventDefault();
     
     const zoomSensitivity = 0.1;
-    const currentScale = token.imageScale || 1;
+    const currentScale = this.currentImageScale();
     let newScale = currentScale;
 
     if (event.deltaY < 0) {
@@ -1701,14 +1745,27 @@ export class RightPanelComponent {
     // Clamp scale
     newScale = Math.max(0.1, Math.min(newScale, 5));
 
-    this.combat.updateToken(token.id, {
-      imageScale: newScale
-    });
+    this.previewImageScale.set(newScale);
+
+    // Debounce the save to campaign
+    clearTimeout(this.wheelTimeout);
+    this.wheelTimeout = setTimeout(() => {
+      if (this.previewImageScale() !== null) {
+        this.combat.updateToken(token.id, {
+          imageScale: this.previewImageScale()!
+        });
+        this.previewImageScale.set(null);
+      }
+    }, 500);
   }
 
   resetImageAdjustment() {
     const token = this.selectedToken();
     if (!token) return;
+    
+    this.previewImageScale.set(null);
+    this.previewImageOffsetX.set(null);
+    this.previewImageOffsetY.set(null);
     
     this.combat.updateToken(token.id, {
       imageScale: 1,
@@ -1723,12 +1780,16 @@ export class RightPanelComponent {
     
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     
-    const update: any = {};
-    if (property === 'scale') update.imageScale = numValue;
-    if (property === 'offsetX') update.imageOffsetX = numValue;
-    if (property === 'offsetY') update.imageOffsetY = numValue;
-    
-    this.combat.updateToken(token.id, update);
+    if (property === 'scale') {
+      this.previewImageScale.set(numValue);
+      clearTimeout(this.wheelTimeout);
+      this.wheelTimeout = setTimeout(() => {
+        if (this.previewImageScale() !== null) {
+          this.combat.updateToken(token.id, { imageScale: this.previewImageScale()! });
+          this.previewImageScale.set(null);
+        }
+      }, 500);
+    }
   }
 
   selectAbilityForRoll(ability: Ability) {
