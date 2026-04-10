@@ -22,7 +22,7 @@ import { DndCoreEngineService, AttackRollResult, ActionResult } from '../../serv
                 <img *ngIf="state()?.attacker?.imageUrl" [src]="state()?.attacker?.imageUrl" class="w-full h-full object-cover" referrerpolicy="no-referrer">
               </div>
               <div>
-                <h2 class="text-lg font-bold text-amber-500 leading-tight">{{ requiresAttackRoll() ? 'Ataque' : 'Ação' }}</h2>
+                <h2 class="text-lg font-bold text-amber-500 leading-tight">Ataque</h2>
                 <p class="text-xs text-stone-400">{{ state()?.attacker?.name }} ➔ {{ state()?.target?.name }}</p>
               </div>
             </div>
@@ -42,132 +42,82 @@ import { DndCoreEngineService, AttackRollResult, ActionResult } from '../../serv
                 <h3 class="font-bold text-stone-200">{{ state()?.ability?.name }}</h3>
                 <p class="text-xs text-stone-400">
                   {{ isSpell() ? 'Ataque Mágico' : 'Ataque com Arma' }} 
-                  @if (requiresAttackRoll()) {
-                    ({{ attributeUsed() | uppercase }})
-                  }
+                  ({{ attributeUsed() | uppercase }})
                 </p>
               </div>
             </div>
 
-            @if (requiresAttackRoll()) {
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-stone-800 p-3 rounded border border-stone-700 text-center">
-                  <p class="text-[10px] uppercase text-stone-500 font-bold mb-1">Modificador</p>
-                  <p class="text-xl font-mono font-bold text-stone-300">
-                    {{ modifierTotal() >= 0 ? '+' : '' }}{{ modifierTotal() }}
-                  </p>
-                </div>
-                <div class="bg-stone-800 p-3 rounded border border-stone-700 text-center">
-                  <p class="text-[10px] uppercase text-stone-500 font-bold mb-1">CA do Alvo</p>
-                  <p class="text-xl font-mono font-bold text-stone-300">{{ targetAC() }}</p>
-                </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-stone-800 p-3 rounded border border-stone-700 text-center">
+                <p class="text-[10px] uppercase text-stone-500 font-bold mb-1">Modificador</p>
+                <p class="text-xl font-mono font-bold text-stone-300">
+                  {{ modifierTotal() >= 0 ? '+' : '' }}{{ modifierTotal() }}
+                </p>
               </div>
+              <div class="bg-stone-800 p-3 rounded border border-stone-700 text-center">
+                <p class="text-[10px] uppercase text-stone-500 font-bold mb-1">CA do Alvo</p>
+                <p class="text-xl font-mono font-bold text-stone-300">{{ targetAC() }}</p>
+              </div>
+            </div>
 
-              @if (!result()) {
-                <div class="space-y-3 pt-2">
-                  <div class="flex gap-2">
-                    <input type="number" [(ngModel)]="manualRoll" 
-                           class="flex-1 bg-stone-800 border border-stone-600 rounded px-3 py-2 text-center font-mono font-bold text-lg focus:outline-none focus:border-amber-500"
-                           placeholder="Valor do d20 (1-20)"
-                           (keyup.enter)="rollAttack()">
-                    <button (click)="rollAttack()" class="bg-amber-600 hover:bg-amber-500 text-stone-900 px-4 rounded font-bold transition-colors flex items-center gap-2">
-                      <mat-icon>casino</mat-icon>
-                      ROLAR
-                    </button>
-                  </div>
-                  @if (errorMsg()) {
-                    <p class="text-red-400 text-xs text-center">{{ errorMsg() }}</p>
-                  }
-                </div>
-              } @else {
-                <div class="p-4 rounded border animate-in fade-in zoom-in-95 duration-300"
-                     [class.bg-green-900/20]="isHit()"
-                     [class.border-green-500/50]="isHit()"
-                     [class.bg-red-900/20]="!isHit()"
-                     [class.border-red-500/50]="!isHit()">
-                  
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="font-bold text-xl" 
-                          [class.text-green-400]="isHit()"
-                          [class.text-red-400]="!isHit()">
-                      {{ isHit() ? 'ACERTOU!' : 'ERROU...' }}
-                    </span>
-                    <span class="font-mono font-bold text-2xl text-stone-200">{{ result()?.total }}</span>
-                  </div>
-                  
-                  <div class="text-sm text-stone-400 font-mono">
-                    d20: [{{ result()?.naturalRoll }}] + Mod: {{ result()?.modifier }}
-                  </div>
-                  
-                  @if (result()?.isCritical) {
-                    <div class="mt-2 text-xs font-bold text-amber-400 uppercase tracking-widest text-center">
-                      Sucesso Crítico!
-                    </div>
-                  }
-                  @if (result()?.isFumble) {
-                    <div class="mt-2 text-xs font-bold text-red-500 uppercase tracking-widest text-center">
-                      Falha Crítica!
-                    </div>
-                  }
-                </div>
-
-                @if (isHit() && state()?.ability?.damage) {
-                  <div class="mt-4 p-3 bg-stone-800 rounded border border-stone-700 animate-in fade-in slide-in-from-top-2">
-                    <h3 class="text-sm font-bold text-red-400 mb-2 text-center">Rolar Dano ({{ state()?.ability?.damage }})</h3>
-                    <div class="flex gap-2">
-                      <input type="number" [(ngModel)]="manualDamageRoll" 
-                             class="flex-1 bg-stone-900 border border-stone-600 rounded px-3 py-2 text-center font-mono font-bold text-lg focus:outline-none focus:border-red-500"
-                             placeholder="Valor"
-                             (keyup.enter)="applyDamage()">
-                      <button (click)="applyDamage()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors flex items-center gap-2">
-                        <mat-icon>local_fire_department</mat-icon>
-                        APLICAR
-                      </button>
-                    </div>
-                    @if (damageErrorMsg()) {
-                      <p class="text-red-400 text-xs text-center mt-2">{{ damageErrorMsg() }}</p>
-                    }
-                  </div>
-                }
-
-                <div class="flex gap-2 pt-2">
-                  <button (click)="close()" class="flex-1 py-2 bg-stone-700 hover:bg-stone-600 text-white font-bold rounded transition-colors">
-                    FECHAR
-                  </button>
-                </div>
-              }
-            } @else if (state()?.ability?.damage) {
-              <!-- No attack roll required, just damage -->
-              <div class="mt-4 p-3 bg-stone-800 rounded border border-stone-700 animate-in fade-in slide-in-from-top-2">
-                <h3 class="text-sm font-bold text-red-400 mb-2 text-center">Rolar Dano ({{ state()?.ability?.damage }})</h3>
+            @if (!result()) {
+              <div class="space-y-3 pt-2">
                 <div class="flex gap-2">
-                  <input type="number" [(ngModel)]="manualDamageRoll" 
-                         class="flex-1 bg-stone-900 border border-stone-600 rounded px-3 py-2 text-center font-mono font-bold text-lg focus:outline-none focus:border-red-500"
-                         placeholder="Valor"
-                         (keyup.enter)="applyDamage()">
-                  <button (click)="applyDamage()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors flex items-center gap-2">
-                    <mat-icon>local_fire_department</mat-icon>
-                    APLICAR
+                  <input type="number" [(ngModel)]="manualRoll" 
+                         class="flex-1 bg-stone-800 border border-stone-600 rounded px-3 py-2 text-center font-mono font-bold text-lg focus:outline-none focus:border-amber-500"
+                         placeholder="Valor do d20 (1-20)"
+                         (keyup.enter)="rollAttack()">
+                  <button (click)="rollAttack()" class="bg-amber-600 hover:bg-amber-500 text-stone-900 px-4 rounded font-bold transition-colors flex items-center gap-2">
+                    <mat-icon>casino</mat-icon>
+                    ROLAR
                   </button>
                 </div>
-                @if (damageErrorMsg()) {
-                  <p class="text-red-400 text-xs text-center mt-2">{{ damageErrorMsg() }}</p>
+                @if (errorMsg()) {
+                  <p class="text-red-400 text-xs text-center">{{ errorMsg() }}</p>
                 }
-              </div>
-              <div class="flex gap-2 pt-2">
-                <button (click)="close()" class="flex-1 py-2 bg-stone-700 hover:bg-stone-600 text-white font-bold rounded transition-colors">
-                  CANCELAR
-                </button>
               </div>
             } @else {
-              <!-- No attack roll and no damage (e.g. just an effect) -->
-              <div class="text-center text-stone-400 py-4">
-                Esta ação não requer rolagem de ataque ou dano.
+              <div class="p-4 rounded border animate-in fade-in zoom-in-95 duration-300"
+                   [class.bg-green-900/20]="isHit()"
+                   [class.border-green-500/50]="isHit()"
+                   [class.bg-red-900/20]="!isHit()"
+                   [class.border-red-500/50]="!isHit()">
+                
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-bold text-xl" 
+                        [class.text-green-400]="isHit()"
+                        [class.text-red-400]="!isHit()">
+                    {{ isHit() ? 'ACERTOU!' : 'ERROU...' }}
+                  </span>
+                  <span class="font-mono font-bold text-2xl text-stone-200">{{ result()?.total }}</span>
+                </div>
+                
+                <div class="text-sm text-stone-400 font-mono">
+                  d20: [{{ result()?.naturalRoll }}] + Mod: {{ result()?.modifier }}
+                </div>
+                
+                @if (result()?.isCritical) {
+                  <div class="mt-2 text-xs font-bold text-amber-400 uppercase tracking-widest text-center">
+                    Sucesso Crítico!
+                  </div>
+                }
+                @if (result()?.isFumble) {
+                  <div class="mt-2 text-xs font-bold text-red-500 uppercase tracking-widest text-center">
+                    Falha Crítica!
+                  </div>
+                }
               </div>
+
               <div class="flex gap-2 pt-2">
                 <button (click)="close()" class="flex-1 py-2 bg-stone-700 hover:bg-stone-600 text-white font-bold rounded transition-colors">
                   FECHAR
                 </button>
+                @if (isHit() && state()?.ability?.damage) {
+                  <button (click)="applyDamage()" class="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded transition-colors flex items-center justify-center gap-2">
+                    <mat-icon>local_fire_department</mat-icon>
+                    DANO
+                  </button>
+                }
               </div>
             }
 
@@ -186,14 +136,6 @@ export class AttackModalComponent {
   manualRoll = signal<number | null>(null);
   errorMsg = signal<string | null>(null);
   result = signal<AttackRollResult | null>(null);
-
-  manualDamageRoll = signal<number | null>(null);
-  damageErrorMsg = signal<string | null>(null);
-
-  requiresAttackRoll = computed(() => {
-    const s = this.state();
-    return s?.ability?.attackBonus !== undefined && s?.ability?.attackBonus !== null;
-  });
 
   isSpell = computed(() => {
     const s = this.state();
@@ -261,8 +203,6 @@ export class AttackModalComponent {
     this.manualRoll.set(null);
     this.errorMsg.set(null);
     this.result.set(null);
-    this.manualDamageRoll.set(null);
-    this.damageErrorMsg.set(null);
   }
 
   rollAttack() {
@@ -293,30 +233,30 @@ export class AttackModalComponent {
 
   applyDamage() {
     const s = this.state();
-    if (!s || !s.ability.damage) return;
+    const res = this.result();
+    if (!s || !res || !this.isHit() || !s.ability.damage) return;
 
-    const val = this.manualDamageRoll();
-    if (val === null || val < 0 || !Number.isInteger(val)) {
-      this.damageErrorMsg.set('Valor de dano inválido');
-      return;
+    // Calculate damage
+    const damageDice = s.ability.damage;
+    
+    // For simplicity, we use the engine's calculateDamage
+    // We need the modifier used for the attack to add to damage (unless it's a spell, usually spells don't add modifier to damage unless specified, but we'll add it for simplicity or just use 0)
+    const attackerStats = (s.attacker.sheet as unknown) as Record<string, number>;
+    const mod = this.isSpell() ? 0 : this.engine.calculateModifier(attackerStats[res.attributeUsed] || 10);
+    
+    const damageRoll = this.engine.calculateDamage(damageDice, mod, 0);
+    
+    if (res.isCritical) {
+      const critDamage = this.engine.calculateDamage(damageDice, 0, 0);
+      damageRoll.total += critDamage.total;
     }
-    this.damageErrorMsg.set(null);
 
-    this.combat.updateToken(s.target.id, { hp: Math.max(0, s.target.hp - val) });
+    this.combat.updateToken(s.target.id, { hp: Math.max(0, s.target.hp - damageRoll.total) });
     
     // Log
-    let log = '';
-    if (this.requiresAttackRoll()) {
-      const res = this.result();
-      if (res) {
-        log = `Ataque contra ${s.target.name} (CA ${this.targetAC()}): d20 [${res.naturalRoll}] + Mod ${res.modifier} = ${res.total} -> ACERTOU!\nDano aplicado: ${val}`;
-      }
-    } else {
-      log = `${s.ability.name} usado contra ${s.target.name}.\nDano aplicado: ${val}`;
-    }
+    const log = `Ataque contra ${s.target.name} (CA ${this.targetAC()}): d20 [${res.naturalRoll}] + Mod ${res.modifier} = ${res.total} -> ACERTOU!\nDano: ${damageRoll.total}`;
     console.log(log);
     
     this.close();
   }
 }
-

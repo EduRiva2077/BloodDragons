@@ -211,7 +211,7 @@ import { Ability } from '../../models/ability';
                class="h-full w-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:bg-stone-700 transition-colors vertical-slider"
                [min]="-mapHeight() * combat.zoom()" 
                [max]="mapHeight() * combat.zoom()" 
-               [ngModel]="-combat.pan().y" 
+               [ngModel]="combat.pan().y" 
                (ngModelChange)="onVerticalScroll($event)"
                title="Mover mapa verticalmente">
       </div>
@@ -283,7 +283,7 @@ export class GridComponent {
   }
 
   onVerticalScroll(value: number) {
-    this.combat.pan.update(p => ({ x: p.x, y: -value }));
+    this.combat.pan.update(p => ({ x: p.x, y: value }));
   }
 
   measureDistance = computed(() => {
