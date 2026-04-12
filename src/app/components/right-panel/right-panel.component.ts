@@ -17,29 +17,6 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="w-80 h-full bg-stone-900 border-l border-stone-800 flex flex-col text-stone-300 relative">
-      <!-- Notifications Overlay -->
-      <div class="absolute top-12 left-0 right-0 z-50 pointer-events-none px-4 space-y-2">
-        @for (notif of combat.notifications(); track notif.id) {
-          <div class="pointer-events-auto bg-stone-800 border-l-4 p-3 rounded shadow-xl flex items-start gap-3 animate-in slide-in-from-right duration-300"
-               [class.border-amber-500]="notif.type === 'xp'"
-               [class.border-green-500]="notif.type === 'level-up'"
-               [class.border-blue-500]="notif.type === 'info'">
-            <mat-icon class="text-sm" [class.text-amber-500]="notif.type === 'xp'" [class.text-green-500]="notif.type === 'level-up'" [class.text-blue-500]="notif.type === 'info'">
-              {{ notif.type === 'xp' ? 'trending_up' : notif.type === 'level-up' ? 'military_tech' : 'info' }}
-            </mat-icon>
-            <div class="flex-1">
-              <p class="text-xs font-bold" [class.text-amber-500]="notif.type === 'xp'" [class.text-green-500]="notif.type === 'level-up'">
-                {{ notif.type === 'xp' ? 'XP Recebido' : notif.type === 'level-up' ? 'Subiu de Nível!' : 'Informação' }}
-              </p>
-              <p class="text-[10px] text-stone-300">{{ notif.message }}</p>
-            </div>
-            <button class="text-stone-500 hover:text-stone-300" (click)="combat.removeNotification(notif.id)">
-              <mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon>
-            </button>
-          </div>
-        }
-      </div>
-
       <!-- Tabs -->
       <div class="flex border-b border-stone-800 text-xs font-mono">
         @if (selectedToken()?.type !== 'item') {
@@ -62,12 +39,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
             </div>
           }
 
-          @if (!selectedToken()) {
-            <div class="text-sm text-stone-500 italic p-4 text-center border border-dashed border-stone-700 rounded">
-              Selecione um token no mapa para ver seus equipamentos e magias.
-            </div>
-          } @else {
-            @if (selectedToken()?.type === 'item') {
+          @if (selectedToken()?.type === 'item') {
               <!-- Item Image -->
               @if (selectedToken()?.imageUrl) {
                 <div class="flex flex-col items-center mb-4">
@@ -917,19 +889,13 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                 }
               </div>
             </div>
-          }
         </div>
       }
       <!-- Sheet Tab -->
       @if (combat.rightPanelTab() === 'sheet') {
         <div class="flex-1 overflow-auto p-4 space-y-4">
-          @if (!selectedToken()) {
-            <div class="text-sm text-stone-500 italic p-4 text-center border border-dashed border-stone-700 rounded">
-              Selecione um token no mapa para ver sua ficha de personagem.
-            </div>
-          } @else {
-            <!-- Token Image -->
-            @if (selectedToken()?.imageUrl) {
+          <!-- Token Image -->
+          @if (selectedToken()?.imageUrl) {
               <div class="flex flex-col items-center mb-4">
                 <div class="w-32 h-32 overflow-hidden rounded-full border-2 border-stone-700 shadow-lg bg-stone-800/50 relative group"
                      [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
@@ -1415,7 +1381,6 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                 }
               </div>
             }
-          }
         </div>
       }
       <!-- Actions Tab -->

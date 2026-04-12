@@ -44,8 +44,8 @@ import { AttackModalComponent } from '../attack-modal/attack-modal.component';
           </div>
         </div>
 
-        <!-- Right Panel (Chat/Abilities) -->
-        @if (combat.uiVisible()) {
+        <!-- Right Panel (Token Details) -->
+        @if (combat.uiVisible() && combat.selectedTokenId()) {
           <app-right-panel class="z-20 shadow-2xl"></app-right-panel>
         }
 
@@ -54,6 +54,23 @@ import { AttackModalComponent } from '../attack-modal/attack-modal.component';
       <!-- Bottom Bar -->
       <app-bottom-bar></app-bottom-bar>
       
+      <!-- Floating Notifications -->
+      <div class="absolute top-16 right-4 z-50 flex flex-col gap-2 w-80 pointer-events-none">
+        @for (notif of combat.notifications(); track notif.id) {
+          <div class="bg-stone-900/90 border border-stone-700 rounded p-3 shadow-lg flex items-start gap-2 animate-in slide-in-from-right pointer-events-auto backdrop-blur-sm">
+            <div class="flex-1">
+              <p class="text-xs font-bold" [class.text-amber-500]="notif.type === 'xp'" [class.text-green-500]="notif.type === 'level-up'" [class.text-blue-400]="notif.type === 'info'">
+                {{ notif.type === 'xp' ? 'XP Recebido' : notif.type === 'level-up' ? 'Subiu de Nível!' : 'Informação' }}
+              </p>
+              <p class="text-[10px] text-stone-300">{{ notif.message }}</p>
+            </div>
+            <button class="text-stone-500 hover:text-stone-300" (click)="combat.removeNotification(notif.id)">
+              <mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+
       <!-- Modals -->
       <app-item-interaction-modal></app-item-interaction-modal>
       <app-attack-modal></app-attack-modal>
