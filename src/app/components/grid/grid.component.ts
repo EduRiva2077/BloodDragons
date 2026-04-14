@@ -673,18 +673,18 @@ export class GridComponent {
       } else {
         // Single target
         affected.forEach(t => {
-          // Se a habilidade tem cura, aplica cura
-          if (ability.healing) {
-            const result = this.combat.resolveHealing(t, ability);
-            this.combat.addNotification(result.log, 'info');
-          }
+          // Se a habilidade é um ataque (arma, magia com bônus de ataque) ou tem dano
+          const isAttack = ability.category === 'weapon' || ability.attackBonus !== undefined || ability.damage;
           
-          // Se a habilidade tem dano, aplica dano
-          if (ability.damage) {
-            // Em vez de resolver direto, abre o modal de ataque
+          if (isAttack) {
+            // Abre o modal de ataque
             if (originToken) {
               this.combat.openAttackModal(originToken, t, ability);
             }
+          } else if (ability.healing) {
+            // Se for apenas cura (sem ataque/dano), resolve direto
+            const result = this.combat.resolveHealing(t, ability);
+            this.combat.addNotification(result.log, 'info');
           }
         });
       }

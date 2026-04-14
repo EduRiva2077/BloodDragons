@@ -171,6 +171,10 @@ export class AttackModalComponent {
     const s = this.state();
     if (!s) return 0;
     
+    if (s.ability.attackBonus !== undefined && s.ability.attackBonus !== 0) {
+      return s.ability.attackBonus;
+    }
+    
     const attacker = {
       stats: (s.attacker.sheet as unknown) as Record<string, number>,
       proficiencyBonus: s.attacker.sheet?.proficiencyBonus || 2,
@@ -183,7 +187,7 @@ export class AttackModalComponent {
     };
     
     const dummy = this.engine.calculateAttackRoll(attacker, weapon, this.isSpell());
-    return dummy.modifier + (attacker.proficiencyBonus || 0) + (weapon.attackBonus || 0);
+    return dummy.modifier + (attacker.proficiencyBonus || 0);
   });
 
   isHit = computed(() => {
