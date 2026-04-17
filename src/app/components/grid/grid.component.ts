@@ -449,74 +449,89 @@ export class GridComponent {
     const gridSize = this.gridSize;
     const pixelsPerMeter = gridSize / 1.5;
     
-    // Calcula as cordenadas garantidas ao centro
-    const tx = (token.x * gridSize) + (gridSize / 2);
-    const ty = (token.y * gridSize) + (gridSize / 2);
-    
-    // O ox/oy do origin
+    // O ox/oy do origin (sempre o centro da célula de origem)
     const ox = (origin.x * gridSize) + (gridSize / 2);
     const oy = (origin.y * gridSize) + (gridSize / 2);
     
     const dx = target.x - ox;
     const dy = target.y - oy;
-    const angle = Math.atan2(dy, dx);
+    const targetAngle = Math.atan2(dy, dx);
+
+    // Definir os limites (hitbox) do token alvo
+    const size = this.getTokenSize(token);
+    const halfSize = size / 2;
+    // Posição visual do token baseada na lógica de centrar na célula da grid
+    const tokenCenterX = (token.x * gridSize) + (gridSize / 2);
+    const tokenCenterY = (token.y * gridSize) + (gridSize / 2);
     
-    const distToToken = Math.hypot(tx - ox, ty - oy);
-    const angleToToken = Math.atan2(ty - oy, tx - ox);
-    
-    if (ability.areaShape === 'cone') {
-      const rangePx = ability.range * pixelsPerMeter;
-      if (distToToken > rangePx) return false;
+    const left = tokenCenterX - halfSize;
+    const right = tokenCenterX + halfSize;
+    const top = tokenCenterY - halfSize;
+    const bottom = tokenCenterY + halfSize;
+
+    // Pontos para testar colisão (4 vértices + centro)
+    const testPoints = [
+      { x: tokenCenterX, y: tokenCenterY }, // Centro
+      { x: left, y: top },                  // Top-Left
+      { x: right, y: top },                 // Top-Right
+      { x: right, y: bottom },              // Bottom-Right
+      { x: left, y: bottom }                // Bottom-Left
+    ];
+
+    // Helper para verificar se um ponto está dentro da área definida
+    const checkPoint = (px: number, py: number): boolean => {
+      const tdx = px - ox;
+      const tdy = py - oy;
+      const distToPoint = Math.hypot(tdx, tdy);
+      const angleToPoint = Math.atan2(tdy, tdx);
+
+      if (ability.areaShape === 'cone') {
+        const rangePx = ability.range * pixelsPerMeter;
+        if (distToPoint > rangePx) return false;
+        
+        let angleDiff = Math.abs(angleToPoint - targetAngle);
+        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+        
+        const coneAngleRad = (ability.angle || 60) * Math.PI / 180;
+        return angleDiff <= coneAngleRad / 2;
+      }
       
-      let angleDiff = Math.abs(angleToToken - angle);
-      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+      if (ability.areaShape === 'circle') {
+        const radiusPx = (ability.radius || 0) * pixelsPerMeter;
+        const distToTarget = Math.hypot(px - target.x, py - target.y);
+        return distToTarget <= radiusPx;
+      }
       
-      const coneAngleRad = (ability.angle || 60) * Math.PI / 180;
-      return angleDiff <= coneAngleRad / 2;
-    }
-    
-    if (ability.areaShape === 'circle') {
-      const radiusPx = (ability.radius || 0) * pixelsPerMeter;
-      const distToTarget = Math.hypot(tx - target.x, ty - target.y);
-      return distToTarget <= radiusPx;
-    }
-    
-    if (ability.areaShape === 'line') {
-      const lengthPx = (ability.length || ability.range) * pixelsPerMeter;
-      const widthPx = (ability.width || 1.5) * pixelsPerMeter;
+      if (ability.areaShape === 'line') {
+        const lengthPx = (ability.length || ability.range) * pixelsPerMeter;
+        const widthPx = (ability.width || 1.5) * pixelsPerMeter;
+        
+        const lineLen = Math.hypot(dx, dy) || 1;
+        const nx = dx / lineLen;
+        const ny = dy / lineLen;
+        
+        const proj = tdx * nx + tdy * ny;
+        if (proj < 0 || proj > lengthPx) return false;
+        
+        const perp = Math.abs(tdx * (-ny) + tdy * nx);
+        return perp <= widthPx / 2;
+      }
       
-      const tdx = tx - ox;
-      const tdy = ty - oy;
+      if (ability.areaShape === 'rectangle') {
+        const widthPx = (ability.width || 6) * pixelsPerMeter;
+        const lengthPx = (ability.length || 1.5) * pixelsPerMeter;
+        return Math.abs(px - target.x) <= widthPx / 2 && Math.abs(py - target.y) <= lengthPx / 2;
+      }
       
-      const lineLen = Math.hypot(dx, dy) || 1;
-      const nx = dx / lineLen;
-      const ny = dy / lineLen;
-      
-      const proj = tdx * nx + tdy * ny;
-      if (proj < 0 || proj > lengthPx) return false;
-      
-      const perp = Math.abs(tdx * (-ny) + tdy * nx);
-      return perp <= widthPx / 2;
-    }
-    
-    if (ability.areaShape === 'rectangle') {
-      const widthPx = (ability.width || 6) * pixelsPerMeter;
-      const lengthPx = (ability.length || 1.5) * pixelsPerMeter;
-      return Math.abs(tx - target.x) <= widthPx / 2 && Math.abs(ty - target.y) <= lengthPx / 2;
-    }
-    
-    // Single target or no area shape defined
-    if (!ability.areaShape || ability.areaShape === 'none') {
-      const size = this.getTokenSize(token);
-      const tokenLeft = token.x * gridSize + (gridSize - size) / 2;
-      const tokenRight = tokenLeft + size;
-      const tokenTop = token.y * gridSize + (gridSize - size) / 2;
-      const tokenBottom = tokenTop + size;
-      
-      return target.x >= tokenLeft && target.x <= tokenRight && target.y >= tokenTop && target.y <= tokenBottom;
-    }
-    
-    return false;
+      if (!ability.areaShape || ability.areaShape === 'none') {
+        return px >= left && px <= right && py >= top && py <= bottom;
+      }
+
+      return false;
+    };
+
+    // Se qualquer um dos pontos estiver na área, o token foi atingido
+    return testPoints.some(p => checkPoint(p.x, p.y));
   }
 
   onMapLoad(event: Event) {
