@@ -461,6 +461,70 @@ export class CombatService {
     this.tokens.update(ts => ts.filter(t => t.id !== id));
     this.saveToCampaign();
   }
+
+  collectItem(playerTokenId: string, itemTokenId: string) {
+    const player = this.tokens().find(t => t.id === playerTokenId);
+    const item = this.itemTokens().find(t => t.id === itemTokenId);
+
+    if (!player || !item) {
+      this.addNotification('Alvo ou item não encontrado.', 'error');
+      return;
+    }
+
+    if (player.type !== 'player') {
+      this.addNotification('Apenas jogadores podem coletar itens.', 'error');
+      return;
+    }
+
+    // Chebyshev distance (Adjacency distance <= 1)
+    const dx = Math.abs(player.x - item.x);
+    const dy = Math.abs(player.y - item.y);
+    if (Math.max(dx, dy) > 1) {
+      this.addNotification('Você está muito longe para coletar este item.', 'error');
+      return;
+    }
+
+    // Ensure player has a sheet
+    const defaultSheet: CharacterSheet = {
+      class: 'Sem Classe', level: 1, background: '', playerName: player.controlledBy || 'Desconhecido', race: '', alignment: '', xp: 0, hitDie: 8,
+      str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10,
+      ac: 10, initiative: 0, speed: 9, proficiencyBonus: 2, passivePerception: 10,
+      hp: player.hp, maxHp: player.maxHp, inventory: []
+    };
+
+    const sheet: CharacterSheet = player.sheet ? { ...player.sheet } : defaultSheet;
+    const inventory = sheet.inventory ? [...sheet.inventory] : [];
+
+    const qty = item.quantity || 1;
+    const wt = item.weight || 0;
+
+    const existingIndex = inventory.findIndex(i => i.name === item.name);
+    if (existingIndex > -1) {
+      inventory[existingIndex] = { 
+        ...inventory[existingIndex], 
+        quantity: inventory[existingIndex].quantity + qty 
+      };
+    } else {
+      inventory.push({
+        name: item.name,
+        quantity: qty,
+        weight: wt,
+        isEquipped: false
+      });
+    }
+    
+    sheet.inventory = inventory;
+
+    // Assign back and save
+    this.updateToken(player.id, { sheet });
+    this.itemTokens.update(items => items.filter(i => i.id !== item.id));
+    this.tokens.update(ts => ts.filter(t => t.id !== item.id)); // Ensures visual token on map is also removed
+    if (this.selectedItemToken()?.id === item.id) {
+      this.selectedItemToken.set(null);
+    }
+    
+    this.addNotification(`O item [${item.name}] foi coletado por ${player.name}`, 'info');
+  }
   
   startPreview(ability: Ability, originToken: Token) {
     this.previewAbility.set(ability);

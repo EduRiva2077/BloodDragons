@@ -36,6 +36,7 @@ export interface CharacterSheet {
   gp?: number;
   pp?: number;
   backpack?: string;
+  inventory?: { name: string; quantity: number; weight: number; isEquipped: boolean }[];
 }
 
 export interface TokenCondition {

@@ -21,6 +21,8 @@ export interface ItemToken {
   healing?: string;
   movement?: number;
   description?: string;
+  weight?: number;
+  quantity?: number;
   
   actions: ItemAction[];
   isPickedUp: boolean;

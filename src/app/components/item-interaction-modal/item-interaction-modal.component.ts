@@ -322,41 +322,14 @@ export class ItemInteractionModalComponent implements DoCheck {
     const currentItem = this.item();
     const selectedTokenId = this.combat.selectedTokenId();
     
-    if (!currentItem || !selectedTokenId) {
-      this.combat.notifications.update((n: CombatNotification[]) => [...n, {
-        id: Date.now().toString(),
-        message: 'Selecione um token seu primeiro para pegar o item.',
-        type: 'info',
-        timestamp: Date.now()
-      }]);
-      return;
+    if (!currentItem) return;
+
+    if (!selectedTokenId) {
+       this.combat.addNotification('Selecione um token seu primeiro para tentar pegar o item.', 'error');
+       return;
     }
 
-    const token = this.combat.tokens().find((t: Token) => t.id === selectedTokenId);
-    if (!token || !token.sheet) return;
-
-    // Adicionar ao inventário do token
-    const inventoryStr = token.sheet.backpack || '';
-    const newItemStr = `${currentItem.name}${currentItem.damage ? ` (${currentItem.damage})` : ''}`;
-    const newInventory = inventoryStr ? `${inventoryStr}\n${newItemStr}` : newItemStr;
-
-    this.combat.updateToken(token.id, {
-      sheet: { ...token.sheet, backpack: newInventory }
-    });
-
-    // Marcar item como pego (remove do grid)
-    this.combat.itemTokens.update((items: ItemToken[]) => items.map((i: ItemToken) => 
-      i.id === currentItem.id ? { ...i, isPickedUp: true } : i
-    ));
-
-    this.combat.notifications.update((n: CombatNotification[]) => [...n, {
-      id: Date.now().toString(),
-      message: `${token.name} pegou ${currentItem.name}!`,
-      type: 'info',
-      timestamp: Date.now()
-    }]);
-
-    this.close();
+    this.combat.collectItem(selectedTokenId, currentItem.id);
   }
 
   rollAction(action: ItemAction) {
