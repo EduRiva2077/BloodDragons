@@ -215,9 +215,9 @@ export class DamageModalComponent {
     const val = this.manualRoll();
     const max = this.maxPossibleRoll();
     const min = this.minPossibleRoll();
-    
+
     if (val === null || max === null || min === null) return null;
-    
+
     if (val > max) return `O valor máximo possível é ${max}`;
     if (val < min) return `O valor mínimo possível é ${min}`;
     return null;
@@ -226,27 +226,27 @@ export class DamageModalComponent {
   calculatedTotal = computed(() => {
     const tier = this.hitTier();
     const parsed = this.parsedDamage();
-    
+
     // Auto-calcula Dano Máximo no Crítico
     if (tier === 'critical') {
       const maxRoll = this.rawMaxDiceDamage();
       return Math.max(0, maxRoll + parsed.modifier);
     }
-    
+
     const manual = this.manualRoll();
-    
+
     // Se não tiver type de dado (ex: dano fixo tipo "5"), usa apenas o modifier
     if (!parsed.diceType && parsed.modifier > 0 && manual === null) {
       return tier === 'grazing' ? Math.floor(parsed.modifier / 2) : parsed.modifier;
     }
-    
+
     if (manual === null) return 0;
-    
+
     let rawTotal = manual + parsed.modifier;
     if (tier === 'grazing') {
       rawTotal = Math.floor(rawTotal / 2);
     }
-    
+
     return Math.max(0, rawTotal);
   });
 
@@ -258,25 +258,25 @@ export class DamageModalComponent {
   applyDamage() {
     const s = this.state();
     const total = this.calculatedTotal();
-    
+
     if (!s || total < 0 || this.manualRoll() === null && this.parsedDamage().diceType) return;
 
     if (s.ability.areaShape && s.ability.areaShape !== 'none') {
-       // Area damage
-       s.targets.forEach(target => {
-          this.combat.updateToken(target.id, { hp: Math.max(0, target.hp - total) });
-          // Optional: handle half damage on save here if needed, but for now we apply full to all in area for simplicity.
-          // In a complex system, there'd be saving throws per target.
-          const log = `Dano em área contra ${target.name} = ${total}`;
-          this.combat.addNotification(log, 'info');
-       });
+      // Area damage
+      s.targets.forEach(target => {
+        this.combat.updateToken(target.id, { hp: Math.max(0, target.hp - total) });
+        // Optional: handle half damage on save here if needed, but for now we apply full to all in area for simplicity.
+        // In a complex system, there'd be saving throws per target.
+        const log = `Dano em área contra ${target.name} = ${total}`;
+        this.combat.addNotification(log, 'info');
+      });
     } else {
-       // Single target damage
-       s.targets.forEach(target => {
-         this.combat.updateToken(target.id, { hp: Math.max(0, target.hp - total) });
-         const log = `Dano contra ${target.name} = ${total} recebido!`;
-         this.combat.addNotification(log, 'info');
-       });
+      // Single target damage
+      s.targets.forEach(target => {
+        this.combat.updateToken(target.id, { hp: Math.max(0, target.hp - total) });
+        const log = `Dano contra ${target.name} = ${total} recebido!`;
+        this.combat.addNotification(log, 'info');
+      });
     }
 
     this.close();
@@ -294,11 +294,11 @@ export class DamageModalComponent {
   parseDamageString(damageStr: string): { diceCount: number, diceType: string, modifier: number } {
     // Remove all whitespace
     const cleanStr = damageStr.replace(/\s+/g, '');
-    
+
     // Matcher: ^(?:(\d*)d(\d+))?(?:([+-])(\d+))?$|^\d+$
     const regex = /^(?:(\d*)d(\d+))?(?:([+-])?(\d+))?$/i;
     const match = cleanStr.match(regex);
-    
+
     if (!match) {
       console.warn(`Could not parse damage string: ${damageStr}. Assuming 0.`);
       return { diceCount: 0, diceType: '', modifier: 0 };
@@ -322,11 +322,11 @@ export class DamageModalComponent {
     // default diceCount is 1 if "d6" doesn't have a prefix
     const diceCount = countStr ? parseInt(countStr, 10) : (typeStr ? 1 : 0);
     const diceType = typeStr ? `d${typeStr}` : '';
-    
+
     let modifier = 0;
     if (modStr) {
-       const rawMod = parseInt(modStr, 10);
-       modifier = signStr === '-' ? -rawMod : rawMod;
+      const rawMod = parseInt(modStr, 10);
+      modifier = signStr === '-' ? -rawMod : rawMod;
     }
 
     return { diceCount, diceType, modifier };
