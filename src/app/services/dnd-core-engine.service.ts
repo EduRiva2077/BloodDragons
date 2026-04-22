@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { CharacterSheet } from '../models/character';
+import { DndMathService } from './dnd-math.service';
 
 export interface ActionResult {
   total: number;
@@ -23,6 +24,7 @@ export interface AttackRollResult {
   providedIn: 'root'
 })
 export class DndCoreEngineService {
+  private mathService = inject(DndMathService);
 
   // ==========================================
   // 1. Atributos
@@ -33,14 +35,14 @@ export class DndCoreEngineService {
    * Ex: 16 -> +3
    */
   calculateModifier(score: number): number {
-    return Math.floor((score - 10) / 2);
+    return this.mathService.calculateModifier(score);
   }
 
   /**
    * Calcula o bônus de proficiência com base no nível do personagem
    */
   calculateProficiencyBonus(level: number): number {
-    return Math.ceil(level / 4) + 1;
+    return this.mathService.calculateProficiencyBonus(level);
   }
 
   /**

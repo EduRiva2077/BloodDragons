@@ -2,6 +2,7 @@ import { Injectable, signal, computed, inject, effect, untracked } from '@angula
 import { Ability } from '../models/ability';
 import { Token, CharacterSheet } from '../models/token';
 import { DndCoreEngineService, ActionResult } from './dnd-core-engine.service';
+import { DndMathService } from './dnd-math.service';
 import { ItemToken } from '../models/item-token';
 import { TokenCondition } from '../models/token';
 import { CampaignService } from './campaign.service';
@@ -68,6 +69,7 @@ const XP_TABLE: Record<number, { xp: number, pb: number }> = {
 @Injectable({ providedIn: 'root' })
 export class CombatService {
   private engine = inject(DndCoreEngineService);
+  private mathService = inject(DndMathService);
   private campaignService = inject(CampaignService);
   
   private currentCampaignId: string | null = null;
@@ -415,15 +417,19 @@ export class CombatService {
       // Apply Level Up Bonuses
       sheet.level = currentLevel;
       
-      // Proficiency Bonus
-      sheet.proficiencyBonus = XP_TABLE[currentLevel].pb;
+      // Proficiency Bonus (Regra Oficial Matemática)
+      sheet.proficiencyBonus = this.mathService.calculateProficiencyBonus(currentLevel);
 
-      // HP Increase: 1 Hit Die + CON modifier
-      const conMod = this.engine.calculateModifier(sheet.con);
+      // HP Increase: Max HP according to official rules
+      const conMod = this.mathService.calculateModifier(sheet.con);
       const hitDie = sheet.hitDie || 10;
-      const hpGain = Math.floor(Math.random() * hitDie) + 1 + conMod;
-      sheet.maxHp += Math.max(1, hpGain);
-      sheet.hp = sheet.maxHp; // Heal on level up? Or just increase max. Let's heal for now.
+      
+      // Aplicando Média Arredondada Para Cima + Modificador de CON no level up progressivo. 
+      // (isRolled poderia vir de config, ms usando por agora regra da média como padrão de VTT)
+      const hpGain = this.mathService.calculateMaxHpGain(hitDie, conMod, false, false);
+      
+      sheet.maxHp += hpGain;
+      sheet.hp = sheet.maxHp; // Heal on level up
 
       this.addNotification(`Parabéns! ${charName} evoluiu para o nível ${currentLevel}!`, 'level-up');
       

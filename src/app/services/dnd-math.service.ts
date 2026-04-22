@@ -31,6 +31,50 @@ export class DndMathService {
     return Math.floor((score - 10) / 2);
   }
 
+  /**
+   * Calcula o bónus de proficiência baseado no Nível Total (Regra Oficial: ceil(nível / 4) + 1)
+   */
+  calculateProficiencyBonus(level: number): number {
+    if (level < 1) return 2; // Nível base de 1 caso de erro
+    return Math.ceil(level / 4) + 1;
+  }
+
+  /**
+   * Calcula o HP Máximo ao subir de nível ou recriar ficha.
+   * Regra Oficial: Max(Dado de Vida) + Mod Con no 1º nível.
+   * Por cada nível após o 1º: Média do dado (arredondada p/ cima) + Mod Con.
+   * O HP ganho por nível tem de ser no mínimo 1.
+   */
+  calculateMaxHpGain(hitDie: number, conModifier: number, isFirstLevel: boolean = false, isRolled: boolean = false): number {
+    if (isFirstLevel) {
+      return Math.max(1, hitDie + conModifier);
+    }
+    
+    // Calcula média arredondada para cima. Ex: d8 -> media 4.5 -> 5. Matemática: (X/2) + 1
+    const averageHitDie = Math.ceil(hitDie / 2) + 1; 
+    
+    if (isRolled) {
+      const rolledValue = this.rollDice(hitDie, 1);
+      return Math.max(1, rolledValue + conModifier);
+    }
+    
+    return Math.max(1, averageHitDie + conModifier);
+  }
+
+  /**
+   * Recalcula o HP Total (Max) do personagem do 1 ao nível atual de forma teórica 
+   * Assumindo valores médios caso os rolagens de vida não sejam guardados individualmente.
+   */
+  calculateTotalMaxHp(level: number, hitDie: number, conScore: number): number {
+    const conMod = this.calculateModifier(conScore);
+    const hpPrimeiroNivel = this.calculateMaxHpGain(hitDie, conMod, true, false);
+    
+    if (level <= 1) return hpPrimeiroNivel;
+    
+    const hpSubsequenteMedia = this.calculateMaxHpGain(hitDie, conMod, false, false);
+    return hpPrimeiroNivel + (hpSubsequenteMedia * (level - 1));
+  }
+
   // --- Geometria de Combate (Correção de AoE) ---
 
   isPointInCircle(px: number, py: number, cx: number, cy: number, radius: number): boolean {
