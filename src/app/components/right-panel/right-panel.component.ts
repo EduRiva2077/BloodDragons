@@ -8,7 +8,9 @@ import { TokenCondition, CharacterSheet } from '../../models/token';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
 import { ActionMenuComponent } from '../action-menu/action-menu.component';
-import { ActionResult } from '../../services/dnd-core-engine.service';
+import { ActionResult, DndCoreEngineService } from '../../services/dnd-core-engine.service';
+import { COMPENDIUM_WEAPONS, COMPENDIUM_SPELLS } from '../../data/compendium.data';
+import { DND5E_CLASSES, DND5E_RACES, DND5E_ALIGNMENTS, DND5E_BACKGROUNDS, findClassByName } from '../../data/dnd5e-options.data';
 
 @Component({
   selector: 'app-right-panel',
@@ -30,239 +32,6 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
         }
       </div>
       
-      <!-- Inventory & Spells Tab -->
-      @if (combat.rightPanelTab() === 'inventory') {
-        <div class="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 space-y-4">
-          @if (combat.previewAbility()) {
-            <div class="bg-amber-900/30 border border-amber-500/50 rounded p-3 text-sm text-amber-500 flex items-center gap-2 mb-4">
-              <mat-icon>info</mat-icon>
-              <span>Modo de visualização ativo. Clique no mapa para confirmar o ataque.</span>
-              <button class="ml-auto bg-stone-800 hover:bg-stone-700 text-stone-300 px-2 py-1 rounded text-xs" (click)="combat.cancelPreview()">Cancelar</button>
-            </div>
-          }
-
-          @if (selectedToken()?.type === 'item') {
-              <!-- Item Image -->
-              @if (selectedToken()?.imageUrl) {
-                <div class="flex flex-col items-center mb-4">
-                  <div class="w-32 h-32 overflow-hidden rounded-md border border-stone-700 shadow-lg bg-stone-800/50 relative group"
-                       [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
-                       [class.cursor-grabbing]="isDraggingImage()"
-                       (mousedown)="onImageDragStart($event)"
-                       (wheel)="onImageWheel($event)">
-                    <img [src]="selectedToken()?.imageUrl" 
-                         class="w-full h-full object-contain pointer-events-none" 
-                         [style.transform]="'scale(' + currentImageScale() + ') translate(' + currentImageOffsetX() + '%, ' + currentImageOffsetY() + '%)'"
-                         alt="Item Image" referrerpolicy="no-referrer" />
-                    
-                    @if (isAuthorizedToEditImage()) {
-                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                        <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover</span>
-                      </div>
-                      <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10" (click)="resetImageAdjustment(); $event.stopPropagation()" title="Resetar">
-                        <mat-icon style="font-size: 12px; width: 12px; height: 12px;">restart_alt</mat-icon>
-                      </button>
-                    }
-                  </div>
-                  
-                  @if (isAuthorizedToEditImage()) {
-                    <div class="flex items-center gap-2 mt-2 w-32">
-                      <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_out</mat-icon>
-                      <input type="range" min="0.5" max="3" step="0.1" [ngModel]="currentImageScale()" (ngModelChange)="updateImageAdjustment('scale', $event)" class="flex-1 accent-amber-500">
-                      <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_in</mat-icon>
-                    </div>
-                  }
-                </div>
-              }
-
-              <!-- Item Details -->
-              <div class="bg-stone-800 rounded border border-stone-700 p-3 shadow-md mb-4">
-                <div class="flex justify-between items-center mb-2">
-                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
-                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">info</mat-icon>
-                    Detalhes do Item
-                  </h4>
-                  <div class="flex gap-2">
-                    @if (isEditingInventory()) {
-                      <button class="text-stone-500 hover:text-green-500 transition-colors" (click)="saveItemDetails()" title="Salvar Detalhes">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">check</mat-icon>
-                      </button>
-                      <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="isEditingInventory.set(false)" title="Cancelar">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">close</mat-icon>
-                      </button>
-                    } @else if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                      <button class="text-stone-500 hover:text-amber-500 transition-colors" (click)="isEditingInventory.set(true)" title="Editar Detalhes">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
-                      </button>
-                    }
-                  </div>
-                </div>
-                
-                <div class="space-y-3">
-                  <div class="flex items-center gap-2">
-                    <span class="text-[10px] text-stone-500 uppercase font-bold w-20">Valor (PO):</span>
-                    @if (isEditingInventory()) {
-                      <input type="number" [formControl]="itemValueControl" class="w-24 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 text-yellow-500 font-bold">
-                    } @else {
-                      <span class="text-xs font-bold text-yellow-500">{{ selectedToken()?.sheet?.gp || 0 }} PO</span>
-                    }
-                  </div>
-                  
-                  <div class="flex flex-col gap-1">
-                    <span class="text-[10px] text-stone-500 uppercase font-bold">Descrição:</span>
-                    @if (isEditingInventory()) {
-                      <textarea [formControl]="inventoryForm" rows="4" class="w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 resize-none text-stone-300"></textarea>
-                    } @else {
-                      <div class="bg-stone-900 p-2 rounded border border-stone-700 min-h-[60px] text-xs text-stone-300 whitespace-pre-wrap">
-                        {{ selectedToken()?.sheet?.backpack || 'Sem descrição.' }}
-                      </div>
-                    }
-                  </div>
-                </div>
-              </div>
-            } @else {
-              <!-- Wallet (Carteira) -->
-              <div class="bg-stone-800 rounded border border-stone-700 p-3 shadow-md mb-4">
-                <div class="flex justify-between items-center mb-2">
-                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
-                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">account_balance_wallet</mat-icon>
-                    Carteira
-                  </h4>
-                  @if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                    <button class="text-stone-500 hover:text-amber-500 transition-colors" (click)="editSheet()" title="Editar Carteira">
-                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
-                    </button>
-                  }
-                </div>
-                <div class="grid grid-cols-5 gap-1 text-center">
-                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
-                    <div class="text-[10px] text-stone-500 font-bold">PC</div>
-                    <div class="font-bold text-sm text-amber-700">{{ selectedToken()?.sheet?.cp || 0 }}</div>
-                  </div>
-                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
-                    <div class="text-[10px] text-stone-500 font-bold">PP</div>
-                    <div class="font-bold text-sm text-stone-400">{{ selectedToken()?.sheet?.sp || 0 }}</div>
-                  </div>
-                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
-                    <div class="text-[10px] text-stone-500 font-bold">PE</div>
-                    <div class="font-bold text-sm text-blue-300">{{ selectedToken()?.sheet?.ep || 0 }}</div>
-                  </div>
-                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
-                    <div class="text-[10px] text-stone-500 font-bold">PO</div>
-                    <div class="font-bold text-sm text-yellow-500">{{ selectedToken()?.sheet?.gp || 0 }}</div>
-                  </div>
-                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
-                    <div class="text-[10px] text-stone-500 font-bold">PL</div>
-                    <div class="font-bold text-sm text-slate-300">{{ selectedToken()?.sheet?.pp || 0 }}</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Inventory Section -->
-              <div class="mb-4">
-                <div class="flex justify-between items-center mb-2">
-                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
-                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">inventory_2</mat-icon>
-                    Itens Coletados
-                  </h4>
-                  <div class="flex items-center gap-2 text-[10px] font-mono" [class.text-red-500]="totalWeight() > maxCapacity()">
-                    <span class="text-stone-400">Peso:</span>
-                    <span class="font-bold">{{ totalWeight() | number:'1.1-1' }} / {{ maxCapacity() | number:'1.1-1' }} kg</span>
-                  </div>
-                </div>
-                
-                <!-- Weight Progress Bar -->
-                <div class="w-full h-1.5 bg-stone-900 rounded-full overflow-hidden mb-3 border border-stone-700">
-                  <div class="h-full transition-all duration-300"
-                       [class.bg-green-500]="totalWeight() <= maxCapacity() * 0.5"
-                       [class.bg-yellow-500]="totalWeight() > maxCapacity() * 0.5 && totalWeight() <= maxCapacity()"
-                       [class.bg-red-500]="totalWeight() > maxCapacity()"
-                       [style.width.%]="Math.min((totalWeight() / (maxCapacity() || 1)) * 100, 100)">
-                  </div>
-                </div>
-                
-                @if (selectedToken()?.sheet?.inventory?.length) {
-                  <div class="space-y-3">
-                    @for (item of selectedToken()?.sheet?.inventory; track item.name) {
-                      <div class="bg-stone-800 rounded border border-stone-700 overflow-hidden shadow-md">
-                        <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50">
-                          <div class="flex items-center gap-2">
-                            <span class="font-bold text-amber-500 text-sm flex items-center gap-1">
-                              @if (item.isEquipped) {
-                                <mat-icon class="text-green-500" style="font-size: 14px; width: 14px; height: 14px;">check_circle</mat-icon>
-                              }
-                              {{ item.name }}
-                            </span>
-                          </div>
-                          @if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                            <div class="flex items-center gap-1">
-                              <!-- Equip / Unequip Toggle -->
-                              <button class="text-stone-500 hover:text-green-400 transition-colors" (click)="toggleEquipItem(item.name)" [title]="item.isEquipped ? 'Desequipar item' : 'Equipar item'">
-                                <mat-icon style="font-size: 16px; width: 16px; height: 16px;">
-                                  {{ item.isEquipped ? 'shield' : 'shield_none' }}
-                                </mat-icon>
-                              </button>
-                              <!-- Drop Item -->
-                              <button class="text-stone-500 hover:text-amber-500 transition-colors ml-1" (click)="dropItem(item.name)" title="Largar no chão">
-                                <mat-icon style="font-size: 16px; width: 16px; height: 16px;">pan_tool_alt</mat-icon>
-                              </button>
-                              <!-- Delete Form -->
-                              <button class="text-stone-500 hover:text-red-500 transition-colors ml-1" (click)="removeInventoryItem(item.name)" title="Deletar da ficha">
-                                <mat-icon style="font-size: 16px; width: 16px; height: 16px;">delete</mat-icon>
-                              </button>
-                            </div>
-                          }
-                        </div>
-                        <div class="p-2 text-xs space-y-2">
-                          <div class="flex gap-2 font-mono flex-wrap">
-                            <span class="bg-stone-900 px-2 py-1 rounded border border-stone-700 text-stone-300">Qtd: {{ item.quantity }}</span>
-                            <span class="bg-stone-900 px-2 py-1 rounded border border-stone-700 text-stone-300">Peso: {{ item.weight }}kg</span>
-                            @if (item.isEquipped) {
-                              <span class="bg-green-900/30 text-green-500 px-2 py-1 rounded border border-green-700/50">Equipado</span>
-                            }
-                          </div>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                } @else {
-                  <p class="text-[10px] text-stone-500 italic text-center py-4 bg-stone-900 rounded border border-stone-800">Nenhum item coletado.</p>
-                }
-              </div>
-
-              <!-- Notes Backpack Section -->
-              <div class="bg-stone-800 rounded border border-stone-700 p-3 shadow-md mb-4">
-                <div class="flex justify-between items-center mb-2">
-                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
-                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">backpack</mat-icon>
-                    Anotações da Mochila
-                  </h4>
-                  <div class="flex gap-2">
-                    @if (isEditingInventory()) {
-                      <button class="text-stone-500 hover:text-green-500 transition-colors" (click)="saveInventory()" title="Salvar Inventário">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">check</mat-icon>
-                      </button>
-                      <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="isEditingInventory.set(false)" title="Cancelar">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">close</mat-icon>
-                      </button>
-                    } @else if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
-                      <button class="text-stone-500 hover:text-amber-500 transition-colors" (click)="isEditingInventory.set(true)" title="Editar Inventário">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
-                      </button>
-                    }
-                  </div>
-                </div>
-                @if (isEditingInventory()) {
-                  <textarea [formControl]="inventoryForm" rows="5" class="w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 resize-none text-stone-300"></textarea>
-                } @else {
-                  <div class="bg-stone-900 p-2 rounded border border-stone-700 min-h-[60px] text-xs text-stone-300 whitespace-pre-wrap flex items-start gap-2">
-                    <mat-icon class="text-stone-500 mt-0.5" style="font-size: 12px; width: 12px; height: 12px;">description</mat-icon>
-                    {{ selectedToken()?.sheet?.backpack || 'Sem anotações.' }}
-                  </div>
-                }
-              </div>
-            }
-
             <!-- Add Ability Form Template -->
             <ng-template #abilityFormTemplate let-category="category">
               <div class="bg-stone-800 rounded border border-stone-700 p-3 mb-4 space-y-3 shadow-md mt-2">
@@ -274,6 +43,39 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     <mat-icon style="font-size: 14px; width: 14px; height: 14px;">close</mat-icon>
                   </button>
                 </div>
+                
+                @if (!editingAbilityId() && category === 'weapon') {
+                  <select class="w-full bg-stone-900 border border-amber-600/50 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 text-amber-500 mb-1" (change)="onCompendiumSelect($event, 'weapon')">
+                    <option value="">-- Importar Arma do Compêndio --</option>
+                    <optgroup label="Armas Simples">
+                      @for (w of compendiumWeaponsSimple(); track w.id) {
+                        <option [value]="w.id">{{ w.name }} ({{ w.damage }} {{ w.damageType }}) [{{ w.attackType === 'melee' ? 'Corpo' : 'Dist.' }}]</option>
+                      }
+                    </optgroup>
+                    <optgroup label="Armas Marciais">
+                      @for (w of compendiumWeaponsMartial(); track w.id) {
+                        <option [value]="w.id">{{ w.name }} ({{ w.damage }} {{ w.damageType }}) [{{ w.attackType === 'melee' ? 'Corpo' : 'Dist.' }}]</option>
+                      }
+                    </optgroup>
+                  </select>
+                }
+                
+                @if (!editingAbilityId() && category === 'spell') {
+                  <select class="w-full bg-stone-900 border border-blue-600/50 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 text-blue-400 mb-1" (change)="onCompendiumSelect($event, 'spell')">
+                    <option value="">-- Importar Magia do Compêndio --</option>
+                    <optgroup label="Truques (Nível 0)">
+                      @for (s of compendiumSpellsCantrips(); track s.id) {
+                        <option [value]="s.id">{{ s.name }}{{ s.damage ? ' (' + s.damage + ')' : '' }}</option>
+                      }
+                    </optgroup>
+                    <optgroup label="Nível 1">
+                      @for (s of compendiumSpellsLevel1(); track s.id) {
+                        <option [value]="s.id">{{ s.name }}{{ s.damage ? ' (' + s.damage + ')' : s.healing ? ' (Cura: ' + s.healing + ')' : '' }}</option>
+                      }
+                    </optgroup>
+                  </select>
+                }
+
                 <form [formGroup]="abilityForm" (ngSubmit)="addAbility()" class="space-y-2">
                   <div class="grid grid-cols-2 gap-2">
                     <input formControlName="name" placeholder="Nome" class="w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
@@ -318,8 +120,10 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     </div>
                     @if (showDamageField()) {
                       <div class="flex flex-col gap-1">
-                        <label for="abilityDamage" class="text-[10px] text-stone-500 uppercase">Dano</label>
-                        <input id="abilityDamage" formControlName="damage" placeholder="ex: 8d6" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
+                        <label for="abilityDamage" class="text-[10px] text-stone-500 uppercase flex justify-between">Dano <span *ngIf="abilityForm.get('damage')?.invalid" class="text-red-500 font-bold">INVÁLIDO (Ex: 2d6)</span></label>
+                        <input id="abilityDamage" formControlName="damage" placeholder="ex: 2d6 (Sem bônus)" 
+                               [class.border-red-500]="abilityForm.get('damage')?.invalid"
+                               class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                       </div>
                     }
                   </div>
@@ -327,13 +131,22 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                   <div class="grid grid-cols-2 gap-2">
                     @if (showHealingField()) {
                       <div class="flex flex-col gap-1">
-                        <label for="abilityHealing" class="text-[10px] text-stone-500 uppercase">Recuperação de PV</label>
-                        <input id="abilityHealing" formControlName="healing" placeholder="ex: 2d8+4" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
+                        <label for="abilityHealing" class="text-[10px] text-stone-500 uppercase flex justify-between">Recuperação de PV <span *ngIf="abilityForm.get('healing')?.invalid" class="text-red-500 font-bold">INVÁLIDO</span></label>
+                        <input id="abilityHealing" formControlName="healing" placeholder="ex: 2d8" 
+                               [class.border-red-500]="abilityForm.get('healing')?.invalid"
+                               class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                       </div>
                     }
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2 mt-2">
                     <div class="flex flex-col gap-1">
                       <label for="attackBonus" class="text-[10px] text-stone-500 uppercase">Bônus de Ataque</label>
                       <input id="attackBonus" type="number" formControlName="attackBonus" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label for="damageBonus" class="text-[10px] text-stone-500 uppercase">Bônus de Dano/Cura</label>
+                      <input id="damageBonus" type="number" formControlName="damageBonus" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                   </div>
 
@@ -381,6 +194,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
             </ng-template>
 
             <!-- Abilities Section with Sub-tabs -->
+            <ng-template #abilitiesSection>
             <div class="mt-6 border border-stone-700 rounded overflow-hidden bg-stone-900/30">
               <div class="flex border-b border-stone-700 bg-stone-900/50">
                     @if (selectedToken()?.type === 'item') {
@@ -1040,6 +854,244 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                 }
               </div>
             </div>
+            </ng-template>
+      <!-- Inventory & Spells Tab -->
+      @if (combat.rightPanelTab() === 'inventory') {
+        <div class="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 space-y-4">
+          @if (combat.previewAbility()) {
+            <div class="bg-amber-900/30 border border-amber-500/50 rounded p-3 text-sm text-amber-500 flex items-center gap-2 mb-4">
+              <mat-icon>info</mat-icon>
+              <span>Modo de visualização ativo. Clique no mapa para confirmar o ataque.</span>
+              <button class="ml-auto bg-stone-800 hover:bg-stone-700 text-stone-300 px-2 py-1 rounded text-xs" (click)="combat.cancelPreview()">Cancelar</button>
+            </div>
+          }
+
+          @if (selectedToken()?.type === 'item') {
+              <!-- Item Image -->
+              @if (selectedToken()?.imageUrl) {
+                <div class="flex flex-col items-center mb-4">
+                  <div class="w-32 h-32 overflow-hidden rounded-md border border-stone-700 shadow-lg bg-stone-800/50 relative group"
+                       [class.cursor-grab]="isAuthorizedToEditImage() && !isDraggingImage()"
+                       [class.cursor-grabbing]="isDraggingImage()"
+                       (mousedown)="onImageDragStart($event)"
+                       (wheel)="onImageWheel($event)">
+                    <img [src]="selectedToken()?.imageUrl" 
+                         class="w-full h-full object-contain pointer-events-none" 
+                         [style.transform]="'scale(' + currentImageScale() + ') translate(' + currentImageOffsetX() + '%, ' + currentImageOffsetY() + '%)'"
+                         alt="Item Image" referrerpolicy="no-referrer" />
+                    
+                    @if (isAuthorizedToEditImage()) {
+                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <span class="text-[10px] text-white font-bold text-center px-2">Arraste para mover</span>
+                      </div>
+                      <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10" (click)="resetImageAdjustment(); $event.stopPropagation()" title="Resetar">
+                        <mat-icon style="font-size: 12px; width: 12px; height: 12px;">restart_alt</mat-icon>
+                      </button>
+                    }
+                  </div>
+                  
+                  @if (isAuthorizedToEditImage()) {
+                    <div class="flex items-center gap-2 mt-2 w-32">
+                      <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_out</mat-icon>
+                      <input type="range" min="0.5" max="3" step="0.1" [ngModel]="currentImageScale()" (ngModelChange)="updateImageAdjustment('scale', $event)" class="flex-1 accent-amber-500">
+                      <mat-icon class="text-stone-500" style="font-size: 14px; width: 14px; height: 14px;">zoom_in</mat-icon>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Item Details -->
+              <div class="bg-stone-800 rounded border border-stone-700 p-3 shadow-md mb-4">
+                <div class="flex justify-between items-center mb-2">
+                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
+                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">info</mat-icon>
+                    Detalhes do Item
+                  </h4>
+                  <div class="flex gap-2">
+                    @if (isEditingInventory()) {
+                      <button class="text-stone-500 hover:text-green-500 transition-colors" (click)="saveItemDetails()" title="Salvar Detalhes">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">check</mat-icon>
+                      </button>
+                      <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="isEditingInventory.set(false)" title="Cancelar">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">close</mat-icon>
+                      </button>
+                    } @else if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
+                      <button class="text-stone-500 hover:text-amber-500 transition-colors" (click)="isEditingInventory.set(true)" title="Editar Detalhes">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
+                      </button>
+                    }
+                  </div>
+                </div>
+                
+                <div class="space-y-3">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-stone-500 uppercase font-bold w-20">Valor (PO):</span>
+                    @if (isEditingInventory()) {
+                      <input type="number" [formControl]="itemValueControl" class="w-24 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 text-yellow-500 font-bold">
+                    } @else {
+                      <span class="text-xs font-bold text-yellow-500">{{ selectedToken()?.sheet?.gp || 0 }} PO</span>
+                    }
+                  </div>
+                  
+                  <div class="flex flex-col gap-1">
+                    <span class="text-[10px] text-stone-500 uppercase font-bold">Descrição:</span>
+                    @if (isEditingInventory()) {
+                      <textarea [formControl]="inventoryForm" rows="4" class="w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 resize-none text-stone-300"></textarea>
+                    } @else {
+                      <div class="bg-stone-900 p-2 rounded border border-stone-700 min-h-[60px] text-xs text-stone-300 whitespace-pre-wrap">
+                        {{ selectedToken()?.sheet?.backpack || 'Sem descrição.' }}
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <!-- Wallet (Carteira) -->
+              <div class="bg-stone-800 rounded border border-stone-700 p-3 shadow-md mb-4">
+                <div class="flex justify-between items-center mb-2">
+                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
+                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">account_balance_wallet</mat-icon>
+                    Carteira
+                  </h4>
+                  @if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
+                    <button class="text-stone-500 hover:text-amber-500 transition-colors" (click)="editSheet()" title="Editar Carteira">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
+                    </button>
+                  }
+                </div>
+                <div class="grid grid-cols-5 gap-1 text-center">
+                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
+                    <div class="text-[10px] text-stone-500 font-bold">PC</div>
+                    <div class="font-bold text-sm text-amber-700">{{ selectedToken()?.sheet?.cp || 0 }}</div>
+                  </div>
+                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
+                    <div class="text-[10px] text-stone-500 font-bold">PP</div>
+                    <div class="font-bold text-sm text-stone-400">{{ selectedToken()?.sheet?.sp || 0 }}</div>
+                  </div>
+                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
+                    <div class="text-[10px] text-stone-500 font-bold">PE</div>
+                    <div class="font-bold text-sm text-blue-300">{{ selectedToken()?.sheet?.ep || 0 }}</div>
+                  </div>
+                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
+                    <div class="text-[10px] text-stone-500 font-bold">PO</div>
+                    <div class="font-bold text-sm text-yellow-500">{{ selectedToken()?.sheet?.gp || 0 }}</div>
+                  </div>
+                  <div class="bg-stone-900 border border-stone-700 rounded p-1">
+                    <div class="text-[10px] text-stone-500 font-bold">PL</div>
+                    <div class="font-bold text-sm text-slate-300">{{ selectedToken()?.sheet?.pp || 0 }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Inventory Section -->
+              <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
+                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">inventory_2</mat-icon>
+                    Itens Coletados
+                  </h4>
+                  <div class="flex items-center gap-2 text-[10px] font-mono" [class.text-red-500]="totalWeight() > maxCapacity()">
+                    <span class="text-stone-400">Peso:</span>
+                    <span class="font-bold">{{ totalWeight() | number:'1.1-1' }} / {{ maxCapacity() | number:'1.1-1' }} kg</span>
+                  </div>
+                </div>
+                
+                <!-- Weight Progress Bar -->
+                <div class="w-full h-1.5 bg-stone-900 rounded-full overflow-hidden mb-3 border border-stone-700">
+                  <div class="h-full transition-all duration-300"
+                       [class.bg-green-500]="totalWeight() <= maxCapacity() * 0.5"
+                       [class.bg-yellow-500]="totalWeight() > maxCapacity() * 0.5 && totalWeight() <= maxCapacity()"
+                       [class.bg-red-500]="totalWeight() > maxCapacity()"
+                       [style.width.%]="Math.min((totalWeight() / (maxCapacity() || 1)) * 100, 100)">
+                  </div>
+                </div>
+                
+                @if (selectedToken()?.sheet?.inventory?.length) {
+                  <div class="space-y-3">
+                    @for (item of selectedToken()?.sheet?.inventory; track item.name) {
+                      <div class="bg-stone-800 rounded border border-stone-700 overflow-hidden shadow-md">
+                        <div class="p-2 border-b border-stone-700 flex justify-between items-center bg-stone-800/50">
+                          <div class="flex items-center gap-2">
+                            <span class="font-bold text-amber-500 text-sm flex items-center gap-1">
+                              @if (item.isEquipped) {
+                                <mat-icon class="text-green-500" style="font-size: 14px; width: 14px; height: 14px;">check_circle</mat-icon>
+                              }
+                              {{ item.name }}
+                            </span>
+                          </div>
+                          @if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
+                            <div class="flex items-center gap-1">
+                              <!-- Equip / Unequip Toggle -->
+                              <button class="text-stone-500 hover:text-green-400 transition-colors" (click)="toggleEquipItem(item.name)" [title]="item.isEquipped ? 'Desequipar item' : 'Equipar item'">
+                                <mat-icon style="font-size: 16px; width: 16px; height: 16px;">
+                                  {{ item.isEquipped ? 'shield' : 'shield_none' }}
+                                </mat-icon>
+                              </button>
+                              <!-- Drop Item -->
+                              <button class="text-stone-500 hover:text-amber-500 transition-colors ml-1" (click)="dropItem(item.name)" title="Largar no chão">
+                                <mat-icon style="font-size: 16px; width: 16px; height: 16px;">pan_tool_alt</mat-icon>
+                              </button>
+                              <!-- Delete Form -->
+                              <button class="text-stone-500 hover:text-red-500 transition-colors ml-1" (click)="removeInventoryItem(item.name)" title="Deletar da ficha">
+                                <mat-icon style="font-size: 16px; width: 16px; height: 16px;">delete</mat-icon>
+                              </button>
+                            </div>
+                          }
+                        </div>
+                        <div class="p-2 text-xs space-y-2">
+                          <div class="flex gap-2 font-mono flex-wrap">
+                            <span class="bg-stone-900 px-2 py-1 rounded border border-stone-700 text-stone-300">Qtd: {{ item.quantity }}</span>
+                            <span class="bg-stone-900 px-2 py-1 rounded border border-stone-700 text-stone-300">Peso: {{ item.weight }}kg</span>
+                            @if (item.isEquipped) {
+                              <span class="bg-green-900/30 text-green-500 px-2 py-1 rounded border border-green-700/50">Equipado</span>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="text-[10px] text-stone-500 italic text-center py-4 bg-stone-900 rounded border border-stone-800">Nenhum item coletado.</p>
+                }
+              </div>
+
+              <!-- Notes Backpack Section -->
+              <div class="bg-stone-800 rounded border border-stone-700 p-3 shadow-md mb-4">
+                <div class="flex justify-between items-center mb-2">
+                  <h4 class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1">
+                    <mat-icon style="font-size: 14px; width: 14px; height: 14px;">backpack</mat-icon>
+                    Anotações da Mochila
+                  </h4>
+                  <div class="flex gap-2">
+                    @if (isEditingInventory()) {
+                      <button class="text-stone-500 hover:text-green-500 transition-colors" (click)="saveInventory()" title="Salvar Inventário">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">check</mat-icon>
+                      </button>
+                      <button class="text-stone-500 hover:text-red-500 transition-colors" (click)="isEditingInventory.set(false)" title="Cancelar">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">close</mat-icon>
+                      </button>
+                    } @else if ((auth.currentUser()?.role === 'GM' && !combat.isPlayMode()) || selectedToken()?.controlledBy === auth.currentUser()?.id) {
+                      <button class="text-stone-500 hover:text-amber-500 transition-colors" (click)="isEditingInventory.set(true)" title="Editar Inventário">
+                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
+                      </button>
+                    }
+                  </div>
+                </div>
+                @if (isEditingInventory()) {
+                  <textarea [formControl]="inventoryForm" rows="5" class="w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500 resize-none text-stone-300"></textarea>
+                } @else {
+                  <div class="bg-stone-900 p-2 rounded border border-stone-700 min-h-[60px] text-xs text-stone-300 whitespace-pre-wrap flex items-start gap-2">
+                    <mat-icon class="text-stone-500 mt-0.5" style="font-size: 12px; width: 12px; height: 12px;">description</mat-icon>
+                    {{ selectedToken()?.sheet?.backpack || 'Sem anotações.' }}
+                  </div>
+                }
+              </div>
+            }
+
+
+            @if (selectedToken()?.type === 'item') {
+              <ng-container *ngTemplateOutlet="abilitiesSection"></ng-container>
+            }
         </div>
       }
       <!-- Sheet Tab -->
@@ -1092,76 +1144,105 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                 <form [formGroup]="sheetForm" class="space-y-3">
                   <div class="grid grid-cols-2 gap-2">
                     <div class="flex flex-col gap-1">
-                      <label for="hp" class="text-[10px] text-stone-500 uppercase">PV Atual</label>
+                      <label for="hp" class="text-[10px] text-stone-500 uppercase flex items-center gap-1"><mat-icon style="font-size:10px;width:10px;height:10px;" class="text-red-500">favorite</mat-icon>PV Atual</label>
                       <input id="hp" type="number" formControlName="hp" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="maxHp" class="text-[10px] text-stone-500 uppercase">PV Máximo</label>
+                      <label for="maxHp" class="text-[10px] text-stone-500 uppercase flex items-center gap-1"><mat-icon style="font-size:10px;width:10px;height:10px;" class="text-red-500">favorite_border</mat-icon>PV Máximo</label>
                       <input id="maxHp" type="number" formControlName="maxHp" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                   </div>
 
                   <div class="grid grid-cols-2 gap-2">
                     <div class="flex flex-col gap-1">
-                      <label for="spellUses" class="text-[10px] text-stone-500 uppercase">Magias Atuais</label>
+                      <label for="spellUses" class="text-[10px] text-stone-500 uppercase flex items-center gap-1"><mat-icon style="font-size:10px;width:10px;height:10px;" class="text-blue-400">auto_awesome</mat-icon>Magias</label>
                       <input id="spellUses" type="number" formControlName="spellUses" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="maxSpellUses" class="text-[10px] text-stone-500 uppercase">Magias Máximo</label>
+                      <label for="maxSpellUses" class="text-[10px] text-stone-500 uppercase flex items-center gap-1"><mat-icon style="font-size:10px;width:10px;height:10px;" class="text-blue-400">auto_awesome</mat-icon>Máx Magias</label>
                       <input id="maxSpellUses" type="number" formControlName="maxSpellUses" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                   </div>
 
                   <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col gap-1.5">
-                      <label for="class" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Classe</label>
-                      <input id="class" formControlName="class" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                      <label for="class" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">school</mat-icon>Classe</label>
+                      <select id="class" formControlName="class" (change)="onClassChange()" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-stone-200">
+                        <option value="">-- Selecionar --</option>
+                        @for (cls of dnd5eClasses; track cls.id) {
+                          <option [value]="cls.name">{{ cls.name }} (d{{ cls.hitDie }})</option>
+                        }
+                      </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="level" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Nível</label>
+                      <label for="level" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">military_tech</mat-icon>Nível</label>
                       <input id="level" type="number" formControlName="level" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="background" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Antecedente</label>
-                      <input id="background" formControlName="background" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                      <label for="background" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">history_edu</mat-icon>Antecedente</label>
+                      <select id="background" formControlName="background" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-stone-200">
+                        <option value="">-- Selecionar --</option>
+                        @for (bg of dnd5eBackgrounds; track bg.id) {
+                          <option [value]="bg.name">{{ bg.name }}</option>
+                        }
+                      </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="playerName" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Nome do Jogador</label>
+                      <label for="playerName" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">person</mat-icon>Jogador</label>
                       <input id="playerName" formControlName="playerName" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="race" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Raça</label>
-                      <input id="race" formControlName="race" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                      <label for="race" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">groups</mat-icon>Raça</label>
+                      <select id="race" formControlName="race" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-stone-200">
+                        <option value="">-- Selecionar --</option>
+                        @for (r of dnd5eRaces; track r.id) {
+                          <option [value]="r.name">{{ r.name }} ({{ r.abilityBonuses }})</option>
+                        }
+                      </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="alignment" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Tendência</label>
-                      <input id="alignment" formControlName="alignment" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                      <label for="alignment" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">balance</mat-icon>Tendência</label>
+                      <select id="alignment" formControlName="alignment" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-stone-200">
+                        <option value="">-- Selecionar --</option>
+                        @for (a of dnd5eAlignments; track a.id) {
+                          <option [value]="a.name">{{ a.name }}</option>
+                        }
+                      </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="xp" class="text-xs text-stone-500 uppercase font-bold tracking-wider">XP</label>
+                      <label for="xp" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">trending_up</mat-icon>XP</label>
                       <input id="xp" type="number" formControlName="xp" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <label for="hitDie" class="text-xs text-stone-500 uppercase font-bold tracking-wider">Dado de Vida (d?)</label>
-                      <input id="hitDie" type="number" formControlName="hitDie" placeholder="ex: 10" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                      <label for="hitDie" class="text-xs text-stone-500 uppercase font-bold tracking-wider flex items-center gap-1"><mat-icon style="font-size:12px;width:12px;height:12px;">casino</mat-icon>Dado de Vida</label>
+                      <select id="hitDie" formControlName="hitDie" class="bg-stone-900 border border-stone-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-stone-200 font-mono">
+                        <option [value]="6">d6</option>
+                        <option [value]="8">d8</option>
+                        <option [value]="10">d10</option>
+                        <option [value]="12">d12</option>
+                      </select>
                     </div>
                   </div>
 
+                  <!-- Seção: Combate -->
+                  <div class="flex items-center gap-1.5 border-b border-stone-700 pb-1 mt-1"><mat-icon style="font-size:14px;width:14px;height:14px;" class="text-amber-600">shield</mat-icon><span class="text-[10px] text-amber-600 uppercase font-black tracking-widest">Combate</span></div>
                   <div class="grid grid-cols-3 gap-2">
                     <div class="flex flex-col gap-1">
-                      <label for="ac" class="text-[10px] text-stone-500 uppercase text-center">CA</label>
+                      <label for="ac" class="text-[10px] text-stone-500 uppercase text-center flex items-center justify-center gap-0.5"><mat-icon style="font-size:10px;width:10px;height:10px;">security</mat-icon>CA</label>
                       <input id="ac" type="number" formControlName="ac" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="initiative" class="text-[10px] text-stone-500 uppercase text-center">Iniciativa</label>
+                      <label for="initiative" class="text-[10px] text-stone-500 uppercase text-center flex items-center justify-center gap-0.5"><mat-icon style="font-size:10px;width:10px;height:10px;">timer</mat-icon>Inic.</label>
                       <input id="initiative" type="number" formControlName="initiative" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="speed" class="text-[10px] text-stone-500 uppercase text-center">Deslocamento (Metros)</label>
+                      <label for="speed" class="text-[10px] text-stone-500 uppercase text-center flex items-center justify-center gap-0.5"><mat-icon style="font-size:10px;width:10px;height:10px;">directions_run</mat-icon>Veloc.</label>
                       <input id="speed" type="number" formControlName="speed" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500 font-mono">
                     </div>
                   </div>
 
+                  <!-- Seção: Atributos -->
+                  <div class="flex items-center gap-1.5 border-b border-stone-700 pb-1 mt-1"><mat-icon style="font-size:14px;width:14px;height:14px;" class="text-amber-600">fitness_center</mat-icon><span class="text-[10px] text-amber-600 uppercase font-black tracking-widest">Atributos</span></div>
                   <div class="grid grid-cols-3 gap-2">
                     <div class="flex flex-col gap-1">
                       <label for="str" class="text-[10px] text-stone-500 uppercase text-center">FOR</label>
@@ -1191,34 +1272,36 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
 
                   <div class="grid grid-cols-2 gap-2">
                     <div class="flex flex-col gap-1">
-                      <label for="proficiencyBonus" class="text-[10px] text-stone-500 uppercase">Bônus de Proficiência</label>
+                      <label for="proficiencyBonus" class="text-[10px] text-stone-500 uppercase flex items-center gap-1"><mat-icon style="font-size:10px;width:10px;height:10px;">workspace_premium</mat-icon>Bônus Prof.</label>
                       <input id="proficiencyBonus" type="number" formControlName="proficiencyBonus" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="passivePerception" class="text-[10px] text-stone-500 uppercase">Percepção Passiva</label>
+                      <label for="passivePerception" class="text-[10px] text-stone-500 uppercase flex items-center gap-1"><mat-icon style="font-size:10px;width:10px;height:10px;">visibility</mat-icon>Percep. Passiva</label>
                       <input id="passivePerception" type="number" formControlName="passivePerception" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500">
                     </div>
                   </div>
 
+                  <!-- Seção: Moedas -->
+                  <div class="flex items-center gap-1.5 border-b border-stone-700 pb-1 mt-1"><mat-icon style="font-size:14px;width:14px;height:14px;" class="text-amber-600">toll</mat-icon><span class="text-[10px] text-amber-600 uppercase font-black tracking-widest">Moedas</span></div>
                   <div class="grid grid-cols-5 gap-1">
                     <div class="flex flex-col gap-1">
-                      <label for="cp" class="text-[10px] text-stone-500 uppercase text-center">PC</label>
+                      <label for="cp" class="text-[10px] text-amber-800 uppercase text-center font-bold">PC</label>
                       <input id="cp" type="number" formControlName="cp" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="sp" class="text-[10px] text-stone-500 uppercase text-center">PP</label>
+                      <label for="sp" class="text-[10px] text-stone-400 uppercase text-center font-bold">PP</label>
                       <input id="sp" type="number" formControlName="sp" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="ep" class="text-[10px] text-stone-500 uppercase text-center">PE</label>
+                      <label for="ep" class="text-[10px] text-blue-400 uppercase text-center font-bold">PE</label>
                       <input id="ep" type="number" formControlName="ep" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="gp" class="text-[10px] text-stone-500 uppercase text-center">PO</label>
+                      <label for="gp" class="text-[10px] text-amber-500 uppercase text-center font-bold">PO</label>
                       <input id="gp" type="number" formControlName="gp" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="flex flex-col gap-1">
-                      <label for="pp" class="text-[10px] text-stone-500 uppercase text-center">PL</label>
+                      <label for="pp" class="text-[10px] text-cyan-300 uppercase text-center font-bold">PL</label>
                       <input id="pp" type="number" formControlName="pp" class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-xs text-center focus:outline-none focus:border-amber-500">
                     </div>
                   </div>
@@ -1237,7 +1320,12 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     }
                   </div>
                 <div class="flex flex-col gap-1.5 mt-3 text-stone-400 bg-stone-900 border border-stone-800 rounded p-2 text-xs">
-                    <div class="flex items-center justify-between"><div class="flex items-center gap-1"><mat-icon class="text-stone-500 text-[14px] leading-none" style="width: 14px; height: 14px;">favorite</mat-icon><span class="text-stone-500 font-bold uppercase text-[10px]">PV</span></div> <span class="font-mono text-stone-300 font-bold">{{ sheet.hp }}/{{ sheet.maxHp }}</span></div>
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between"><div class="flex items-center gap-1"><mat-icon class="text-red-500 text-[14px] leading-none" style="width: 14px; height: 14px;">favorite</mat-icon><span class="text-stone-500 font-bold uppercase text-[10px]">PV</span></div> <span class="font-mono text-stone-300 font-bold">{{ sheet.hp }}/{{ sheet.maxHp }}</span></div>
+                      <div class="h-2 bg-stone-950 rounded-full overflow-hidden border border-stone-700">
+                        <div class="h-full rounded-full transition-all duration-500" [style.width.%]="(sheet.hp / sheet.maxHp) * 100" [class.bg-green-500]="sheet.hp > sheet.maxHp * 0.5" [class.bg-amber-500]="sheet.hp <= sheet.maxHp * 0.5 && sheet.hp > sheet.maxHp * 0.25" [class.bg-red-500]="sheet.hp <= sheet.maxHp * 0.25"></div>
+                      </div>
+                    </div>
                     <div class="flex items-center justify-between"><div class="flex items-center gap-1"><mat-icon class="text-stone-500 text-[14px] leading-none" style="width: 14px; height: 14px;">auto_awesome</mat-icon><span class="text-stone-500 font-bold uppercase text-[10px]">Magias</span></div> <span class="font-mono text-stone-300">{{ sheet.spellUses }}/{{ sheet.maxSpellUses }}</span></div>
                     <div class="border-t border-stone-800 my-0.5"></div>
                     <div class="flex items-center justify-between"><div class="flex items-center gap-1"><mat-icon class="text-stone-500 text-[14px] leading-none" style="width: 14px; height: 14px;">school</mat-icon><span class="text-stone-500 font-bold uppercase text-[10px]">Classe</span></div> <span class="truncate text-stone-300 text-[11px] max-w-[100px] text-right" title="{{ sheet.class }}">{{ sheet.class }}</span></div>
@@ -1277,7 +1365,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
 
                 <!-- Attributes -->
                 <div class="grid grid-cols-3 gap-2">
-                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm">
+                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm hover:border-amber-500/30 hover:bg-stone-800/80 transition-colors cursor-default">
                     <div class="text-[10px] text-stone-500 uppercase font-black flex items-center gap-1">
                       <mat-icon style="font-size: 10px; width: 10px; height: 10px;">fitness_center</mat-icon>
                       FOR
@@ -1285,7 +1373,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     <div class="font-bold text-lg text-stone-200">{{ sheet.str }}</div>
                     <div class="text-[10px] text-stone-400 font-mono">{{ mathService.calculateModifier(sheet.str) >= 0 ? '+' : '' }}{{ mathService.calculateModifier(sheet.str) }}</div>
                   </div>
-                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm">
+                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm hover:border-amber-500/30 hover:bg-stone-800/80 transition-colors cursor-default">
                     <div class="text-[10px] text-stone-500 uppercase font-bold flex items-center gap-1">
                       <mat-icon style="font-size: 10px; width: 10px; height: 10px;">directions_run</mat-icon>
                       DES
@@ -1293,7 +1381,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     <div class="font-bold text-lg text-stone-200">{{ sheet.dex }}</div>
                     <div class="text-[10px] text-stone-400 font-mono">{{ mathService.calculateModifier(sheet.dex) >= 0 ? '+' : '' }}{{ mathService.calculateModifier(sheet.dex) }}</div>
                   </div>
-                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm">
+                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm hover:border-amber-500/30 hover:bg-stone-800/80 transition-colors cursor-default">
                     <div class="text-[10px] text-stone-500 uppercase font-bold flex items-center gap-1">
                       <mat-icon style="font-size: 10px; width: 10px; height: 10px;">favorite</mat-icon>
                       CON
@@ -1301,7 +1389,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     <div class="font-bold text-lg text-stone-200">{{ sheet.con }}</div>
                     <div class="text-[10px] text-stone-400 font-mono">{{ mathService.calculateModifier(sheet.con) >= 0 ? '+' : '' }}{{ mathService.calculateModifier(sheet.con) }}</div>
                   </div>
-                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm">
+                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm hover:border-amber-500/30 hover:bg-stone-800/80 transition-colors cursor-default">
                     <div class="text-[10px] text-stone-500 uppercase font-bold flex items-center gap-1">
                       <mat-icon style="font-size: 10px; width: 10px; height: 10px;">menu_book</mat-icon>
                       INT
@@ -1309,7 +1397,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     <div class="font-bold text-lg text-stone-200">{{ sheet.int }}</div>
                     <div class="text-[10px] text-stone-400 font-mono">{{ mathService.calculateModifier(sheet.int) >= 0 ? '+' : '' }}{{ mathService.calculateModifier(sheet.int) }}</div>
                   </div>
-                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm">
+                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm hover:border-amber-500/30 hover:bg-stone-800/80 transition-colors cursor-default">
                     <div class="text-[10px] text-stone-500 uppercase font-bold flex items-center gap-1">
                       <mat-icon style="font-size: 10px; width: 10px; height: 10px;">visibility</mat-icon>
                       SAB
@@ -1317,7 +1405,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                     <div class="font-bold text-lg text-stone-200">{{ sheet.wis }}</div>
                     <div class="text-[10px] text-stone-400 font-mono">{{ mathService.calculateModifier(sheet.wis) >= 0 ? '+' : '' }}{{ mathService.calculateModifier(sheet.wis) }}</div>
                   </div>
-                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm">
+                  <div class="bg-stone-900 border border-stone-800 rounded p-2 text-center flex flex-col items-center shadow-sm hover:border-amber-500/30 hover:bg-stone-800/80 transition-colors cursor-default">
                     <div class="text-[10px] text-stone-500 uppercase font-bold flex items-center gap-1">
                       <mat-icon style="font-size: 10px; width: 10px; height: 10px;">record_voice_over</mat-icon>
                       CAR
@@ -1394,132 +1482,7 @@ import { ActionResult } from '../../services/dnd-core-engine.service';
                 </div>
 
                 <!-- Sub-tabs for Abilities -->
-                <div class="mt-4 border border-stone-700 rounded overflow-hidden">
-                  <div class="flex bg-stone-900 border-b border-stone-800">
-                    <button class="flex-1 py-1.5 text-[9px] font-bold uppercase transition-colors flex items-center justify-center gap-0.5"
-                            [class.text-amber-500]="fichaSubTab() === 'weapons'"
-                            [class.bg-stone-800]="fichaSubTab() === 'weapons'"
-                            (click)="fichaSubTab.set('weapons')">
-                      <mat-icon style="font-size: 12px; width: 12px; height: 12px;">shield</mat-icon>
-                      <span class="truncate">Armas</span>
-                    </button>
-                    <button class="flex-1 py-1.5 text-[9px] font-bold uppercase transition-colors border-l border-stone-800 flex items-center justify-center gap-0.5"
-                            [class.text-amber-500]="fichaSubTab() === 'spells'"
-                            [class.bg-stone-800]="fichaSubTab() === 'spells'"
-                            (click)="fichaSubTab.set('spells')">
-                      <mat-icon style="font-size: 12px; width: 12px; height: 12px;">auto_fix_high</mat-icon>
-                      <span class="truncate">Magias</span>
-                    </button>
-                    <button class="flex-1 py-1.5 text-[9px] font-bold uppercase transition-colors border-l border-stone-800 flex items-center justify-center gap-0.5"
-                            [class.text-amber-500]="fichaSubTab() === 'features'"
-                            [class.bg-stone-800]="fichaSubTab() === 'features'"
-                            (click)="fichaSubTab.set('features')">
-                      <mat-icon style="font-size: 12px; width: 12px; height: 12px;">star</mat-icon>
-                      <span class="truncate">Hards</span>
-                    </button>
-                  </div>
-
-                  <div class="p-2 min-h-[100px]">
-                    <!-- Weapons List (Ficha) -->
-                    @if (fichaSubTab() === 'weapons') {
-                      @if (weapons().length > 0) {
-                        <div class="space-y-2">
-                          @for (ability of weapons(); track ability.id) {
-                            <div class="bg-stone-900 rounded border border-stone-700 p-2 text-xs">
-                              <div class="flex justify-between items-center mb-1">
-                                <span class="font-bold text-amber-500">{{ ability.name }}</span>
-                                <span class="text-[10px] font-mono text-stone-400 uppercase bg-stone-800 px-1 rounded">{{ ability.type }}</span>
-                              </div>
-                              <div class="flex gap-2 font-mono text-[10px] text-stone-400">
-                                <span>Atk: {{ (ability.attackBonus ?? 0) >= 0 ? '+' : '' }}{{ ability.attackBonus ?? 0 }}</span>
-                                @if (ability.damage) {
-                                  <span>Dano: {{ ability.damage }}</span>
-                                }
-                                @if (ability.healing) {
-                                  <span class="text-green-500">Recup. PV: {{ ability.healing }}</span>
-                                }
-                                <span>Alcance: {{ ability.range }}m</span>
-                              </div>
-                              @if (ability.description) {
-                                <p class="text-stone-500 mt-1 text-[10px]">{{ ability.description }}</p>
-                              }
-                            </div>
-                          }
-                        </div>
-                      } @else {
-                        <p class="text-[10px] text-stone-500 italic text-center py-4">Nenhuma arma equipada.</p>
-                      }
-                    }
-
-                    <!-- Spells List (Ficha) -->
-                    @if (fichaSubTab() === 'spells') {
-                      @if (spells().length > 0) {
-                        <div class="space-y-2">
-                          @for (ability of spells(); track ability.id) {
-                            <div class="bg-stone-900 rounded border border-stone-700 p-2 text-xs">
-                              <div class="flex justify-between items-center mb-1">
-                                <span class="font-bold text-amber-500">{{ ability.name }}</span>
-                                <span class="text-[10px] bg-blue-900/50 text-blue-300 px-1 rounded border border-blue-700/50">Nível {{ ability.spellLevel || 0 }}</span>
-                              </div>
-                              <div class="flex gap-2 font-mono text-[10px] text-stone-400 flex-wrap">
-                                <span>Atk: {{ (ability.attackBonus ?? 0) >= 0 ? '+' : '' }}{{ ability.attackBonus ?? 0 }}</span>
-                                @if (ability.damage) {
-                                  <span>Dano: {{ ability.damage }}</span>
-                                }
-                                @if (ability.healing) {
-                                  <span class="text-green-500">Recup. PV: {{ ability.healing }}</span>
-                                }
-                                <span>Alcance: {{ ability.range }}m</span>
-                                @if (ability.maxUses) {
-                                  <div class="flex gap-[1px] w-full h-1 bg-stone-900 rounded-full overflow-hidden border border-stone-700 mt-1">
-                                    @for (i of [].constructor(ability.maxUses); track $index) {
-                                      <div class="flex-1 h-full transition-colors duration-300" 
-                                           [class.bg-blue-500]="(ability.uses || 0) > $index"
-                                           [class.bg-stone-800]="(ability.uses || 0) <= $index">
-                                      </div>
-                                    }
-                                  </div>
-                                  <span class="text-amber-500">Usos: {{ ability.uses || 0 }}/{{ ability.maxUses }}</span>
-                                }
-                              </div>
-                              @if (ability.description) {
-                                <p class="text-stone-500 mt-1 text-[10px]">{{ ability.description }}</p>
-                              }
-                            </div>
-                          }
-                        </div>
-                      } @else {
-                        <p class="text-[10px] text-stone-500 italic text-center py-4">Nenhuma magia preparada.</p>
-                      }
-                    }
-
-                    <!-- Features List (Ficha) -->
-                    @if (fichaSubTab() === 'features') {
-                      @if (features().length > 0) {
-                        <div class="space-y-2">
-                          @for (ability of features(); track ability.id) {
-                            <div class="bg-stone-900 rounded border border-stone-700 p-2 text-xs">
-                              <div class="flex justify-between items-center mb-1">
-                                <span class="font-bold text-amber-500">{{ ability.name }}</span>
-                                <span class="text-[10px] font-mono text-stone-400 uppercase bg-stone-800 px-1 rounded">{{ ability.type }}</span>
-                              </div>
-                              <div class="flex gap-2 font-mono text-[10px] mb-1">
-                                @if (ability.healing) {
-                                  <span class="text-green-500">Recup. PV: {{ ability.healing }}</span>
-                                }
-                              </div>
-                              @if (ability.description) {
-                                <p class="text-stone-500 mt-1 text-[10px]">{{ ability.description }}</p>
-                              }
-                            </div>
-                          }
-                        </div>
-                      } @else {
-                        <p class="text-[10px] text-stone-500 italic text-center py-4">Nenhuma habilidade especial.</p>
-                      }
-                    }
-                  </div>
-                </div>
+                <ng-container *ngTemplateOutlet="abilitiesSection"></ng-container>
               </div>
             } @else {
               <div class="bg-stone-800 rounded border border-stone-700 p-4 text-center space-y-3">
@@ -1545,6 +1508,7 @@ export class RightPanelComponent {
   mathService = inject(DndMathService);
   combat = inject(CombatService);
   auth = inject(AuthService);
+  engine = inject(DndCoreEngineService);
 
   Math = Math;
 
@@ -1637,6 +1601,80 @@ export class RightPanelComponent {
   showAddAbilityForm = signal<boolean>(false);
   editingAbilityId = signal<string | null>(null);
 
+  // D&D 5e Reference Data
+  dnd5eClasses = DND5E_CLASSES;
+  dnd5eRaces = DND5E_RACES;
+  dnd5eAlignments = DND5E_ALIGNMENTS;
+  dnd5eBackgrounds = DND5E_BACKGROUNDS;
+
+  onClassChange() {
+    const className = this.sheetForm.get('class')?.value;
+    const cls = findClassByName(className || '');
+    if (cls) {
+      this.sheetForm.patchValue({ hitDie: cls.hitDie });
+    }
+  }
+
+  compendiumWeaponsSimple = computed(() => COMPENDIUM_WEAPONS.filter(w => w.weaponType === 'simple'));
+  compendiumWeaponsMartial = computed(() => COMPENDIUM_WEAPONS.filter(w => w.weaponType === 'martial'));
+
+  compendiumSpellsCantrips = computed(() => COMPENDIUM_SPELLS.filter(s => s.level === 0));
+  compendiumSpellsLevel1 = computed(() => COMPENDIUM_SPELLS.filter(s => s.level === 1));
+
+  onCompendiumSelect(event: Event, category: string) {
+    const target = event.target as HTMLSelectElement;
+    if (!target.value) return;
+
+    if (category === 'weapon') {
+      const w = COMPENDIUM_WEAPONS.find(x => x.id === target.value);
+      if (w) {
+        // Auto-detect proficiency if sheet has proficiencies data
+        const token = this.selectedToken();
+        const isProf = token?.sheet
+          ? this.engine.isProficientWithWeapon(token.sheet as any, w as any)
+          : false;
+
+        // Map ranged weapons to use 'ranged' property for attack calc
+        const props = [...w.properties];
+        if (w.attackType === 'ranged' && !props.includes('ranged')) {
+          props.push('ranged');
+        }
+
+        this.abilityForm.patchValue({
+          name: w.name,
+          category: 'weapon',
+          type: 'action',
+          range: w.range,
+          damage: w.damage,
+          isProficient: isProf,
+          description: `Tipo: ${w.weaponType === 'simple' ? 'Simples' : 'Marcial'}, Ataque: ${w.attackType === 'melee' ? 'Corpo-a-corpo' : 'À distância'}, Dano: ${w.damageType}. Propriedades: ${props.join(', ')}`
+        });
+        this.showDamageField.set(!!w.damage);
+        this.showHealingField.set(false);
+      }
+    } else if (category === 'spell') {
+      const s = COMPENDIUM_SPELLS.find(x => x.id === target.value);
+      if (s) {
+        this.abilityForm.patchValue({
+          name: s.name,
+          category: 'spell',
+          type: 'action',
+          range: s.range,
+          damage: s.damage || '',
+          healing: s.healing || '',
+          spellLevel: s.level,
+          description: s.description,
+          areaShape: s.areaShape || 'none'
+        });
+        this.showDamageField.set(!!s.damage);
+        this.showHealingField.set(!!s.healing);
+      }
+    }
+    
+    // Reset dropdown visually
+    target.value = "";
+  }
+
   openAddAbilityForm(category: 'weapon' | 'spell' | 'feature' | 'item_effect') {
     this.editingAbilityId.set(null);
     this.abilityForm.reset({
@@ -1648,6 +1686,7 @@ export class RightPanelComponent {
       damageType: 'slashing',
       description: '',
       attackBonus: 0,
+      damageBonus: 0,
       isProficient: true,
       isOffHand: false,
       category: category,
@@ -1672,6 +1711,7 @@ export class RightPanelComponent {
       healing: ability.healing || '',
       description: ability.description || '',
       attackBonus: ability.attackBonus || 0,
+      damageBonus: ability.damageBonus || 0,
       isProficient: ability.isProficient !== undefined ? ability.isProficient : true,
       isOffHand: ability.isOffHand || false,
       category: ability.category || 'feature',
@@ -1728,11 +1768,12 @@ export class RightPanelComponent {
     type: new FormControl<'action' | 'bonus_action' | 'reaction' | 'passive'>('action', { nonNullable: true, validators: [Validators.required] }),
     range: new FormControl(0, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
     areaShape: new FormControl<AreaShape>('none', { nonNullable: true, validators: [Validators.required] }),
-    damage: new FormControl('', { nonNullable: true }),
+    damage: new FormControl('', { nonNullable: true, validators: [Validators.pattern(/^\d*(d\d+)?$/i)] }),
     damageType: new FormControl('slashing', { nonNullable: true }),
-    healing: new FormControl('', { nonNullable: true }),
+    healing: new FormControl('', { nonNullable: true, validators: [Validators.pattern(/^\d*(d\d+)?$/i)] }),
     description: new FormControl('', { nonNullable: true }),
     attackBonus: new FormControl(0, { nonNullable: true }),
+    damageBonus: new FormControl(0, { nonNullable: true }),
     isProficient: new FormControl(true, { nonNullable: true }),
     isOffHand: new FormControl(false, { nonNullable: true }),
     category: new FormControl<'weapon' | 'spell' | 'feature' | 'item_effect'>('feature', { nonNullable: true }),
