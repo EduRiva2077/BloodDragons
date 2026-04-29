@@ -57,8 +57,8 @@ export class DndCoreEngineService {
   // ==========================================
 
   calculateAttackRoll(
-    attacker: { stats: Record<string, number>, proficiencyBonus: number, spellcastingAbility?: string, sheet?: CharacterSheet },
-    weapon: { name: string, properties?: string[], attackBonus?: number, isProficient?: boolean, weaponType?: 'simple' | 'martial' },
+    attacker: { stats: Record<string, number>, proficiencyBonus: number, spellcastingAbility?: string },
+    weapon: { name: string, properties?: string[], attackBonus?: number, isProficient?: boolean },
     isSpell: boolean,
     manualRoll?: number
   ): AttackRollResult {
@@ -66,21 +66,7 @@ export class DndCoreEngineService {
     let attributeUsed = 'str';
     let attributeScore = attacker.stats['str'] || 10;
 
-    // Evaluate armor penalties if we have the full sheet
-    let hasDisadvantage = false;
-    let canCastSpells = true;
-    if (attacker.sheet) {
-      const penalties = this.validateArmorPenalties(attacker.sheet);
-      hasDisadvantage = penalties.hasDisadvantage;
-      canCastSpells = penalties.canCastSpells;
-    }
-
     if (isSpell) {
-      if (!canCastSpells) {
-        // Technically shouldn't be able to cast, but if they try, we could impose penalty or just let the caller handle it.
-        // We'll impose disadvantage as a fallback penalty.
-        hasDisadvantage = true;
-      }
       attributeUsed = attacker.spellcastingAbility || 'int';
       attributeScore = attacker.stats[attributeUsed] || 10;
     } else {
@@ -112,35 +98,19 @@ export class DndCoreEngineService {
     let appliedProficiency = 0;
     if (isSpell) {
       appliedProficiency = attacker.proficiencyBonus || 0;
-    } else {
-      // Dynamic check for weapon proficiency
-      let isProficient = weapon.isProficient;
-      if (isProficient === undefined && attacker.sheet) {
-        isProficient = this.isProficientWithWeapon(attacker.sheet, weapon);
-      }
-      if (isProficient) {
-        appliedProficiency = attacker.proficiencyBonus || 0;
-      }
+    } else if (weapon.isProficient) {
+      appliedProficiency = attacker.proficiencyBonus || 0;
     }
 
-    // Apply disadvantage if from armor and using STR/DEX
-    let finalNaturalRoll = naturalRoll;
-    if (hasDisadvantage && !manualRoll) {
-       if (attributeUsed === 'str' || attributeUsed === 'dex' || isSpell) {
-          const roll2 = Math.floor(Math.random() * 20) + 1;
-          finalNaturalRoll = Math.min(naturalRoll, roll2);
-       }
-    }
-
-    const total = finalNaturalRoll + modifier + appliedProficiency + (weapon.attackBonus || 0);
+    const total = naturalRoll + modifier + appliedProficiency + (weapon.attackBonus || 0);
 
     return {
       total,
-      naturalRoll: finalNaturalRoll,
+      naturalRoll,
       attributeUsed,
       modifier,
-      isCritical: finalNaturalRoll === 20,
-      isFumble: finalNaturalRoll === 1
+      isCritical: naturalRoll === 20,
+      isFumble: naturalRoll === 1
     };
   }
 
@@ -279,12 +249,10 @@ export class DndCoreEngineService {
     diceString: string, 
     modifier: number, 
     itemBonus = 0, 
-    resistanceMultiplier = 1, // 0.5 para resistência, 2 para vulnerabilidade
-    isOffhand = false
+    resistanceMultiplier = 1 // 0.5 para resistência, 2 para vulnerabilidade
   ): ActionResult {
     const parsed = this.parseAndRoll(diceString);
-    const appliedModifier = isOffhand ? Math.min(0, modifier) : modifier;
-    const modifiers = appliedModifier + itemBonus;
+    const modifiers = modifier + itemBonus;
     
     let rawTotal = parsed.total + modifiers;
     // Dano não pode ser negativo
@@ -292,7 +260,7 @@ export class DndCoreEngineService {
 
     const finalTotal = Math.floor(rawTotal * resistanceMultiplier);
 
-    let log = `Dados: ${parsed.log} + Mod: ${appliedModifier}`;
+    let log = `Dados: ${parsed.log} + Mod: ${modifier}`;
     if (itemBonus) log += ` + Item: ${itemBonus}`;
     if (resistanceMultiplier !== 1) log += ` (x${resistanceMultiplier})`;
     log += ` = ${finalTotal}`;
@@ -333,42 +301,17 @@ export class DndCoreEngineService {
   /**
    * Lógica inteligente de Armadura
    */
-  calculateAC(
-    armorType: 'heavy' | 'medium' | 'light' | 'none', 
-    baseAC: number, 
-    dexModifier: number, 
-    shieldBonus = 0,
-    conModifier = 0,
-    wisModifier = 0,
-    unarmoredDefenseClass: 'barbarian' | 'monk' | 'none' = 'none'
-  ): number {
+  calculateAC(armorType: 'heavy' | 'medium' | 'light' | 'none', baseAC: number, dexModifier: number, shieldBonus = 0): number {
     let effectiveDexMod = dexModifier;
     
     if (armorType === 'heavy') {
-      return baseAC + shieldBonus; // Ignora Destreza
+      effectiveDexMod = 0; // Ignora Destreza
     } else if (armorType === 'medium') {
       effectiveDexMod = Math.min(dexModifier, 2); // Limita Destreza a +2
-      return baseAC + effectiveDexMod + shieldBonus;
-    } else if (armorType === 'light') {
-      return baseAC + effectiveDexMod + shieldBonus;
     }
+    // 'light' e 'none' usam a Destreza total
     
-    // armorType === 'none'
-    const standardUnarmored = 10 + dexModifier;
-    const barbarianUnarmored = 10 + dexModifier + conModifier;
-    const monkUnarmored = 10 + dexModifier + wisModifier;
-
-    let calculatedAC = standardUnarmored;
-
-    if (unarmoredDefenseClass === 'monk' && shieldBonus > 0) {
-      calculatedAC = standardUnarmored; // Monge perde a Defesa sem Armadura se usar escudo
-    } else if (unarmoredDefenseClass === 'barbarian') {
-      calculatedAC = Math.max(standardUnarmored, barbarianUnarmored);
-    } else if (unarmoredDefenseClass === 'monk' && shieldBonus === 0) {
-      calculatedAC = Math.max(standardUnarmored, monkUnarmored);
-    }
-
-    return calculatedAC + shieldBonus;
+    return baseAC + effectiveDexMod + shieldBonus;
   }
 
   // ==========================================
@@ -388,18 +331,16 @@ export class DndCoreEngineService {
   // ==========================================
 
   calculateMaxHP(hitDice: number, level: number, conModifier: number): number {
-    // Nível 1: Dado cheio + Mod Con. Mínimo 1.
-    let totalHp = Math.max(1, hitDice + conModifier);
+    // Nível 1: Dado cheio + Mod Con
+    let totalHp = hitDice + conModifier;
     
     // Níveis seguintes: Média arredondada para cima (hitDice / 2 + 1) + Mod Con
     if (level > 1) {
-      const averageHpPerLevel = Math.ceil(hitDice / 2) + 1;
-      for (let i = 2; i <= level; i++) {
-        totalHp += Math.max(1, averageHpPerLevel + conModifier);
-      }
+      const averageHpPerLevel = Math.floor(hitDice / 2) + 1;
+      totalHp += (level - 1) * (averageHpPerLevel + conModifier);
     }
     
-    return totalHp;
+    return Math.max(totalHp, level); // Mínimo 1 PV por nível
   }
 
   // ==========================================
@@ -412,18 +353,13 @@ export class DndCoreEngineService {
   }
 
   calculateCarryingCapacity(strScore: number): number {
-    return strScore * 7.5; // Em kg
+    return strScore * 15;
   }
 
-  calculatePushDragLift(strScore: number): number {
-    return this.calculateCarryingCapacity(strScore) * 2; // Em kg
-  }
-
-  calculateJumpDistance(strScore: number, strModifier: number, hasRunningStart = true): { long: number, high: number } {
-    const multiplier = hasRunningStart ? 1 : 0.5;
+  calculateJumpDistance(strScore: number, strModifier: number): { long: number, high: number } {
     return {
-      long: (strScore * 0.3) * multiplier, // Em metros
-      high: Math.max(0, 0.9 + (strModifier * 0.3)) * multiplier // Em metros
+      long: strScore, // Em pés
+      high: Math.max(0, 3 + strModifier) // Em pés
     };
   }
 
@@ -489,59 +425,5 @@ export class DndCoreEngineService {
       success: total >= dc,
       margin: total - dc
     };
-  }
-
-  // ==========================================
-  // 7. Validação de Regras Restritas (Proficiências)
-  // ==========================================
-
-  /**
-   * Avalia as penalidades de usar uma armadura sem proficiência.
-   * Regra: Desvantagem em testes de STR/DEX e ataques com STR/DEX, e não pode conjurar magias.
-   */
-  validateArmorPenalties(character: CharacterSheet): { hasDisadvantage: boolean; canCastSpells: boolean } {
-    let hasDisadvantage = false;
-    let canCastSpells = true;
-
-    if (!character.proficiencies?.armor) return { hasDisadvantage: false, canCastSpells: true };
-
-    const equippedArmorList = character.inventory.filter(item => item.isEquipped && item.type === 'armor');
-    const equippedShieldList = character.inventory.filter(item => item.isEquipped && item.type === 'shield');
-
-    for (const armor of equippedArmorList) {
-      if (armor.armorType && armor.armorType !== 'none' && !character.proficiencies.armor.includes(armor.armorType)) {
-        hasDisadvantage = true;
-        canCastSpells = false;
-      }
-    }
-
-    for (const shield of equippedShieldList) {
-      if (!character.proficiencies.armor.includes('shields')) {
-        hasDisadvantage = true;
-        canCastSpells = false;
-      }
-    }
-
-    return { hasDisadvantage, canCastSpells };
-  }
-
-  /**
-   * Verifica se o personagem é proficiente com uma determinada arma.
-   */
-  isProficientWithWeapon(character: CharacterSheet, weapon: { name: string, weaponType?: 'simple' | 'martial' }): boolean {
-    if (!character.proficiencies?.weapons) return false;
-    
-    // Verifica por categoria
-    if (weapon.weaponType && character.proficiencies.weapons.includes(weapon.weaponType)) {
-      return true;
-    }
-
-    // Verifica pelo nome específico
-    const lowerName = weapon.name.toLowerCase();
-    if (character.proficiencies.weapons.some(w => w.toLowerCase() === lowerName)) {
-      return true;
-    }
-
-    return false;
   }
 }

@@ -140,13 +140,12 @@ export class CombatService {
     attacker: Token;
     targets: Token[];
     ability: Ability;
-    hitTiers: Record<string, 'grazing' | 'solid' | 'critical'>;
-    saveDC?: number;
+    hitTier: 'grazing' | 'solid' | 'critical';
   } | null>(null);
 
-  openDamageModal(attacker: Token, targets: Token | Token[], ability: Ability, hitTiers: Record<string, 'grazing' | 'solid' | 'critical'>, saveDC?: number) {
+  openDamageModal(attacker: Token, targets: Token | Token[], ability: Ability, hitTier: 'grazing' | 'solid' | 'critical' = 'solid') {
     const targetArray = Array.isArray(targets) ? targets : [targets];
-    this.damageModalState.set({ attacker, targets: targetArray, ability, hitTiers, saveDC });
+    this.damageModalState.set({ attacker, targets: targetArray, ability, hitTier });
   }
 
   closeDamageModal() {
